@@ -36,6 +36,8 @@ const g = globalThis as unknown as { __extratorExecucoes?: Map<number, Execucao>
 const execucoes = (g.__extratorExecucoes ??= new Map<number, Execucao>());
 
 const LINHAS_DE_LOG = 50;
+/** Tempo máximo, após o fim do processo, para ler as últimas linhas dos pipes. */
+const DRENAGEM_MS = 1500;
 
 function mensagemDe(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro);
@@ -71,11 +73,26 @@ export function iniciarExportacao(deps: DepsOrquestrador, grupoBruto: unknown): 
     return { ok: false, codigo: "EM_ANDAMENTO", mensagem: "Já existe uma exportação em andamento. Aguarde ou cancele." };
   }
 
-  mkdirSync(config.exportsDir, { recursive: true });
-  const arquivoJson = path.join(config.exportsDir, `exportacao_${id}.json`);
-  atualizarExportacao(db, id, { arquivoJson });
+  // A vaga já foi reservada: qualquer falha daqui em diante precisa liberá-la
+  // (senão o registro fica em_andamento sem processo e trava as próximas).
+  try {
+    mkdirSync(config.exportsDir, { recursive: true });
+    const arquivoJson = path.join(config.exportsDir, `exportacao_${id}.json`);
+    atualizarExportacao(db, id, { arquivoJson });
 
-  executar(deps, id, grupo.nome, arquivoJson);
+    executar(deps, id, grupo.nome, arquivoJson);
+  } catch (erro) {
+    try {
+      atualizarExportacao(db, id, {
+        status: "erro",
+        erroMsg: `Falha ao iniciar a exportação: ${mensagemDe(erro)}`,
+        finalizadaEm: agora().toISOString(),
+      });
+    } catch (segundo) {
+      console.error(`[exportacao ${id}] não foi possível registrar a falha ao iniciar:`, segundo);
+    }
+    throw erro;
+  }
   return { ok: true, id };
 }
 
@@ -94,18 +111,43 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
   const linhas: string[] = [];
   let ultimaLinhaStderr: string | undefined;
   let finalizado = false;
+  let child: ChildProcess | undefined;
 
-  /** Grava o estado final uma única vez, seja qual for o caminho que chegou aqui. */
+  /**
+   * Grava o estado final uma única vez, seja qual for o caminho que chegou aqui.
+   * Nunca lança: uma falha no banco é registrada no log, e a limpeza (timer,
+   * registro de processos vivos, pipes) roda sempre, para o lock não travar.
+   */
   const finalizar = (campos: CamposExportacao) => {
     if (finalizado) return;
     finalizado = true;
-    const execucao = execucoes.get(id);
-    if (execucao) clearTimeout(execucao.timer);
-    execucoes.delete(id);
-    atualizarExportacao(db, id, { ...campos, finalizadaEm: agora().toISOString(), logTail: linhas.join("\n") });
+    try {
+      const gravar = () =>
+        atualizarExportacao(db, id, { ...campos, finalizadaEm: agora().toISOString(), logTail: linhas.join("\n") });
+      try {
+        gravar();
+      } catch {
+        gravar();
+      }
+    } catch (erro) {
+      console.error(`[exportacao ${id}] não foi possível gravar o estado final:`, erro);
+    } finally {
+      const execucao = execucoes.get(id);
+      if (execucao) clearTimeout(execucao.timer);
+      execucoes.delete(id);
+      child?.stdout?.destroy();
+      child?.stderr?.destroy();
+    }
   };
 
-  let child: ChildProcess;
+  /** Erro inesperado num handler: encerra o processo e fecha o registro como erro. */
+  const falharInternamente = (erro: unknown) => {
+    finalizar({ status: "erro", erroMsg: `Erro interno ao processar a exportação: ${mensagemDe(erro)}` });
+    // Limitação conhecida: descendentes reparentados depois que a raiz (Python) morre de forma anormal
+    // não são alcançados pelo `taskkill /T`.
+    encerrarArvore(child?.pid);
+  };
+
   try {
     child = spawn(config.python, [config.script, grupo, "--json-out", arquivoJson], {
       cwd: config.cwd,
@@ -117,20 +159,21 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
     finalizar({ status: "erro", erroMsg: `Não foi possível iniciar o script: ${mensagemDe(erro)}` });
     return;
   }
+  const filho = child;
 
   const execucao: Execucao = {
-    child,
+    child: filho,
     cancelada: false,
     expirou: false,
     timer: setTimeout(() => {
       execucao.expirou = true;
-      encerrarArvore(child.pid);
+      encerrarArvore(filho.pid);
     }, config.timeoutMs),
   };
   execucoes.set(id, execucao);
 
   const tratarLinha = (linha: string) => {
-    if (!linha.trim()) return;
+    if (finalizado || !linha.trim()) return;
     linhas.push(linha);
     if (linhas.length > LINHAS_DE_LOG) linhas.shift();
 
@@ -143,53 +186,78 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
     atualizarExportacao(db, id, campos);
   };
 
-  child.stdout!.setEncoding("utf8");
-  child.stderr!.setEncoding("utf8");
-  const saida = createInterface({ input: child.stdout! });
-  const erros = createInterface({ input: child.stderr! });
-  saida.on("line", tratarLinha);
-  erros.on("line", (linha) => {
-    if (linha.trim()) ultimaLinhaStderr = linha;
-    tratarLinha(linha);
+  filho.stdout!.setEncoding("utf8");
+  filho.stderr!.setEncoding("utf8");
+  const saida = createInterface({ input: filho.stdout! });
+  const erros = createInterface({ input: filho.stderr! });
+  saida.on("line", (linha) => {
+    try {
+      tratarLinha(linha);
+    } catch (erro) {
+      falharInternamente(erro);
+    }
   });
-  // O 'close' do processo pode chegar antes da última linha ser lida.
+  erros.on("line", (linha) => {
+    try {
+      if (linha.trim()) ultimaLinhaStderr = linha;
+      tratarLinha(linha);
+    } catch (erro) {
+      falharInternamente(erro);
+    }
+  });
   const leituraCompleta = Promise.all([
     new Promise<void>((resolver) => saida.on("close", resolver)),
     new Promise<void>((resolver) => erros.on("close", resolver)),
   ]);
 
-  child.on("error", (erro) => {
-    finalizar({ status: "erro", erroMsg: `Falha ao executar o script: ${mensagemDe(erro)}` });
+  filho.on("error", (erro) => {
+    try {
+      finalizar({ status: "erro", erroMsg: `Falha ao executar o script: ${mensagemDe(erro)}` });
+    } catch (interno) {
+      console.error(`[exportacao ${id}] falha no handler de erro:`, interno);
+    }
   });
 
-  child.on("close", async (codigo) => {
-    await leituraCompleta;
-
-    if (execucao.cancelada) return finalizar({ status: "cancelada", erroMsg: null });
-    if (execucao.expirou) {
-      return finalizar({
-        status: "erro",
-        erroMsg: `Tempo esgotado (limite de ${descreverLimite(config.timeoutMs)}). A exportação foi encerrada.`,
-      });
-    }
-    if (codigo !== 0) {
-      // stdout e stderr são pipes separados, sem ordem garantida entre si:
-      // a mensagem de erro do script vem do stderr, então ele tem prioridade.
-      const ultima = ultimaLinhaStderr ?? [...linhas].reverse().find((l) => l.trim());
-      return finalizar({
-        status: "erro",
-        erroMsg: `O script terminou com código ${codigo}.${ultima ? ` Última linha: ${ultima}` : ""}`,
-      });
-    }
-
+  // Decide no 'exit' (o processo acabou), não no 'close': um descendente que herdou os pipes
+  // os manteria abertos e o 'close' nunca chegaria. A leitura das últimas linhas é limitada.
+  filho.on("exit", async (codigo, sinal) => {
     try {
-      const resultado = importarJson(db, id, JSON.parse(readFileSync(arquivoJson, "utf8")));
-      finalizar({ status: "concluida", totalMensagens: resultado.lidas, contador: resultado.lidas, erroMsg: null });
+      let temporizador: NodeJS.Timeout | undefined;
+      await Promise.race([
+        leituraCompleta,
+        new Promise<void>((resolver) => {
+          temporizador = setTimeout(resolver, DRENAGEM_MS);
+        }),
+      ]);
+      clearTimeout(temporizador);
+      if (finalizado) return;
+
+      if (execucao.cancelada) return finalizar({ status: "cancelada", erroMsg: null });
+      if (execucao.expirou) {
+        return finalizar({
+          status: "erro",
+          erroMsg: `Tempo esgotado (limite de ${descreverLimite(config.timeoutMs)}). A exportação foi encerrada.`,
+        });
+      }
+      if (codigo !== 0) {
+        // stdout e stderr são pipes separados, sem ordem garantida entre si:
+        // a mensagem de erro do script vem do stderr, então ele tem prioridade.
+        const ultima = ultimaLinhaStderr ?? [...linhas].reverse().find((l) => l.trim());
+        const inicio = codigo === null ? `O script foi encerrado pelo sinal ${sinal}.` : `O script terminou com código ${codigo}.`;
+        return finalizar({ status: "erro", erroMsg: `${inicio}${ultima ? ` Última linha: ${ultima}` : ""}` });
+      }
+
+      try {
+        const resultado = importarJson(db, id, JSON.parse(readFileSync(arquivoJson, "utf8")));
+        finalizar({ status: "concluida", totalMensagens: resultado.lidas, contador: resultado.lidas, erroMsg: null });
+      } catch (erro) {
+        finalizar({
+          status: "erro",
+          erroMsg: `O script terminou, mas a importação falhou: ${mensagemDe(erro)}. Os arquivos foram mantidos em exports/.`,
+        });
+      }
     } catch (erro) {
-      finalizar({
-        status: "erro",
-        erroMsg: `O script terminou, mas a importação falhou: ${mensagemDe(erro)}. Os arquivos foram mantidos em exports/.`,
-      });
+      falharInternamente(erro);
     }
   });
 }

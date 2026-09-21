@@ -7,7 +7,8 @@
 //
 // Uso: `npm run build` e depois `npm run verificar:api` (dentro de app/).
 // Nunca toca em exports/ nem em app/data/. Dados 100% sinteticos; nenhum texto de conversa e impresso.
-// Sai com 0 so se todos os checks passaram (SKIP nao conta como falha, mas aparece no resumo).
+// Sai com 0 so se nada falhou e nada ficou sem prova; 1 se algum check falhou; 2 se algum check foi pulado (SKIP)
+// por nao ser possivel prova-lo (ex.: consulta de processos falhou). Sub-casos com limitacao conhecida nao contam.
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHmac, randomBytes } from "node:crypto";
@@ -57,6 +58,7 @@ const E = {
   cookie: null,
   servidor: null, // { proc, pid, log, saiu }
   pidFiles: new Set(),
+  extras: new Set(), // processos que o proprio script iniciou fora do servidor (controles positivos)
   junction: null,
   alvoDaJunctionIntacto: undefined,
   segredos: [], // marcadores que NUNCA podem aparecer numa resposta
@@ -96,32 +98,49 @@ async function esperarMorte(pid, ms = 5000) {
 function matarArvore(pid) {
   if (!pid) return;
   try {
-    if (ehWindows) spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
+    if (ehWindows) spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, timeout: 15_000 });
     else process.kill(-pid, "SIGKILL");
   } catch {
     // Ja morreu.
   }
 }
 
-/** Pids de processos node rodando o fixture. `null` se a consulta falhou. */
+/** Consulta de processos do Windows (comando PowerShell trocavel so para o teste por mutacao). */
+const COMANDO_LISTA_FAKE_TEAMS =
+  "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -like '*fake-teams*' } | Select-Object -ExpandProperty ProcessId";
+
+/**
+ * Pids de processos node rodando o fixture. `null` = DESCONHECIDO (a consulta falhou): quem chama nao pode
+ * tratar isso como "lista vazia" nem passar o check. No Windows qualquer status != 0, stderr nao vazio,
+ * estouro de tempo ou erro ao iniciar o PowerShell vira `null` (um `Get-CimInstance` que falha tambem sai com 1).
+ * `pgrep` e o unico caso em que status 1 com stderr vazio significa "nenhum processo".
+ */
 function pidsFakeTeams() {
   const r = ehWindows
-    ? spawnSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -like '*fake-teams*' } | Select-Object -ExpandProperty ProcessId",
-        ],
-        { encoding: "utf8", windowsHide: true, timeout: 60_000 }
-      )
-    : spawnSync("pgrep", ["-f", "fake-teams"], { encoding: "utf8" });
-  if (r.error || (r.status !== 0 && r.status !== 1)) return null;
+    ? spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", COMANDO_LISTA_FAKE_TEAMS], {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 15_000,
+      })
+    : spawnSync("pgrep", ["-f", "fake-teams"], { encoding: "utf8", timeout: 15_000 });
+  if (r.error || r.signal || String(r.stderr ?? "").trim() !== "") return null;
+  if (r.status !== 0 && !(!ehWindows && r.status === 1)) return null;
   return String(r.stdout)
     .split(/\s+/)
     .filter((s) => /^\d+$/.test(s))
     .map(Number);
+}
+
+/** Pid que escuta a porta do teste (Windows, via netstat); `null` se nao foi possivel saber ou ninguem escuta. */
+function pidEscutando() {
+  if (!ehWindows) return null;
+  const r = spawnSync("netstat", ["-ano", "-p", "TCP"], { encoding: "utf8", windowsHide: true, timeout: 15_000 });
+  if (r.error || r.status !== 0) return null;
+  for (const linha of String(r.stdout).split(/\r?\n/)) {
+    const c = linha.trim().split(/\s+/);
+    if (c.length >= 5 && c[3] === "LISTENING" && c[1] === `${HOST}:${PORTA}` && /^\d+$/.test(c[4])) return Number(c[4]);
+  }
+  return null;
 }
 
 function lerPid(arquivo) {
@@ -153,6 +172,33 @@ async function esperarSemFakeTeams(ms = 8000) {
   return ultima;
 }
 
+/** Roda a consulta de fake-teams e exige lista vazia. `null` (consulta falhou) PULA o check, nunca o aprova. */
+async function semFakeTeams(t, rotulo, ms = 8000) {
+  const lista = await esperarSemFakeTeams(ms);
+  if (lista === null) {
+    t.pular(`consulta de processos falhou (nao da para provar que ${rotulo})`);
+    return null;
+  }
+  t.igual(lista.length, 0, `processos fake-teams restantes (${rotulo})`);
+  return lista;
+}
+
+/**
+ * Controle positivo da consulta: com fixtures COMPROVADAMENTE vivos (pid lido do proprio fixture e
+ * `process.kill(pid, 0)` ok), a lista tem de incluir esses pids. Sem isto, "0 restantes" pareceria igual
+ * com a consulta funcionando ou cega. Devolve o texto para o "observed", ou null se a consulta falhou (SKIP).
+ */
+function controlePositivo(t, pids, rotulo) {
+  for (const pid of pids) t.ok(vivo(pid), `${rotulo}: pid ${pid} nao esta vivo, o controle nao vale`);
+  const lista = pidsFakeTeams();
+  if (lista === null) {
+    t.pular(`${rotulo}: consulta de processos falhou`);
+    return null;
+  }
+  for (const pid of pids) t.ok(lista.includes(pid), `${rotulo}: a consulta NAO enxerga o pid vivo ${pid} (lista: ${lista.join(",") || "vazia"})`);
+  return `controle positivo (${rotulo}): vivos ${pids.join("+")} -> lista [${lista.join(",")}]`;
+}
+
 function portaAberta() {
   return new Promise((resolve) => {
     const s = net.connect({ host: HOST, port: PORTA });
@@ -169,6 +215,7 @@ function portaAberta() {
 // ------------------------------------------------------------------ servidor
 
 async function iniciarServidor({ rotulo, modo, pidFile, timeoutMin }) {
+  if (await portaAberta()) throw new Error(`a porta ${PORTA} esta ocupada antes de iniciar o servidor "${rotulo}"; abortando sem tocar nela`);
   const env = { ...process.env };
   for (const chave of Object.keys(env)) {
     if (/^(EXTRATOR_|TEAMS_|FAKE_)/.test(chave)) delete env[chave];
@@ -220,6 +267,12 @@ async function iniciarServidor({ rotulo, modo, pidFile, timeoutMin }) {
     }
     throw new Error(`servidor "${rotulo}" nao ficou pronto (${pronto ?? "tempo esgotado"}). Fim do log:\n${cauda}`);
   }
+  if (servidor.saiu) throw new Error(`servidor "${rotulo}" (pid ${servidor.pid}) ja tinha saido quando a porta respondeu`);
+  const dono = pidEscutando();
+  if (dono !== null && dono !== servidor.pid) {
+    throw new Error(`a porta ${PORTA} e atendida pelo pid ${dono}, nao pelo servidor "${rotulo}" que este script iniciou (pid ${servidor.pid})`);
+  }
+  console.log(`INFO  servidor "${rotulo}" (modo ${modo}, timeout ${timeoutMin} min): pid ${servidor.pid} vivo; pid que escuta a porta ${PORTA}: ${dono ?? "desconhecido"}`);
 }
 
 async function pararServidor() {
@@ -227,8 +280,9 @@ async function pararServidor() {
   if (!servidor) return;
   matarArvore(servidor.pid);
   await sondar(() => servidor.saiu || !vivo(servidor.pid), 8000, 100);
-  await sondar(async () => !(await portaAberta()), 10_000, 200);
+  const livre = await sondar(async () => !(await portaAberta()), 10_000, 200);
   E.servidor = null;
+  if (!livre) throw new Error(`a porta ${PORTA} continua aberta depois de encerrar o servidor (pid ${servidor.pid})`);
 }
 
 // ------------------------------------------------------------------ HTTP
@@ -456,6 +510,10 @@ function criarT() {
     falhas,
     notas,
     pulo: null,
+    subs: [], // sub-casos com resultado proprio (ex.: SKIP so de um caso), impressos logo apos a linha do check
+    sub(sufixo, estado, texto) {
+      t.subs.push({ sufixo, estado, texto });
+    },
     ok(condicao, msg) {
       if (!condicao) falhas.push(msg);
     },
@@ -484,6 +542,10 @@ async function rodar(id, descricao, fn) {
   const observado = [...(t.pulo ? [`motivo: ${t.pulo}`] : []), ...t.notas, ...t.falhas.map((f) => `FALHOU ${f}`)].join("; ");
   E.resultados.push({ estado, id });
   console.log(`${estado}  ${id}  ${descricao}  (observed: ${observado || "ok"}; ${Date.now() - inicio} ms)`);
+  for (const sub of t.subs) {
+    E.resultados.push({ estado: sub.estado, id: `${id}[${sub.sufixo}]`, tolerado: true });
+    console.log(`${sub.estado}  ${id}[${sub.sufixo}]  (observed: ${sub.texto})`);
+  }
 }
 
 const CHECKS_FASE_A = [
@@ -703,7 +765,7 @@ const CHECKS_FASE_A = [
   ],
   [
     "DL-1",
-    "download: arquivo legitimo ok; travessia, absoluto, UNC, pasta, junction, NUL e vazio -> 404; ids invalidos -> 400",
+    "download: arquivo legitimo ok; travessia, absoluto, UNC, pasta, junction, NUL e vazio -> 404; ids invalidos -> 400 (limitacao: o caso UNC nao tem controle fiel, o compartilhamento administrativo pode nao ser legivel aqui)",
     async (t) => {
       await garantirCookie();
       const segredo = `SEGREDO-${aleatorio(8)}`;
@@ -735,7 +797,7 @@ const CHECKS_FASE_A = [
         ["relativo com ..", path.relative(APP_DIR, arquivoSegredo), 404],
         ["absoluto fora de exports", arquivoSegredo, 404],
         ["exports/../secret.txt", `${E.exportsDir}${path.sep}..${path.sep}secret.txt`, 404],
-        ["UNC", "\\\\127.0.0.1\\c$\\Windows\\win.ini", 404],
+        ["UNC (sem controle fiel)", "\\\\127.0.0.1\\c$\\Windows\\win.ini", 404],
         ["diretorio dentro de exports", path.join(E.exportsDir, "subpasta"), 404],
         ["junction para fora", path.join(juncao, "dentro.txt"), 404],
         ["caminho com NUL", `${E.exportsDir}${path.sep}a${NUL}b.txt`, 404],
@@ -744,17 +806,25 @@ const CHECKS_FASE_A = [
 
       const db = abrirBanco();
       const ids = [];
+      let nulLido = "";
       try {
         const gid = Number(db.prepare("INSERT INTO grupos (nome) VALUES (?)").run(`DL-${aleatorio(3)}`).lastInsertRowid);
         const inserir = db.prepare("INSERT INTO exportacoes (grupo_id, status, iniciada_em, arquivo_txt) VALUES (?, 'concluida', ?, ?)");
         for (const [, caminho] of casos) ids.push(Number(inserir.run(gid, new Date().toISOString(), caminho).lastInsertRowid));
+        // O byte NUL sobreviveu ao SQLite? (mesma biblioteca que o servidor usa para ler o registro)
+        nulLido = String(db.prepare("SELECT arquivo_txt AS a FROM exportacoes WHERE id = ?").get(ids[casos.findIndex(([r]) => r === "caminho com NUL")])?.a ?? "");
       } finally {
         db.close();
       }
 
+      const nulSobreviveu = nulLido.includes(NUL);
       const obs = [];
       for (let i = 0; i < casos.length; i++) {
         const [rotulo, , esperado] = casos[i];
+        if (rotulo === "caminho com NUL" && !nulSobreviveu) {
+          t.sub("NUL", "SKIP", `o SQLite nao preservou o byte NUL no registro (lido: ${nulLido.length} caracteres); sem NUL o caso nao e fiel`);
+          continue;
+        }
         const r = await requisitar({ caminho: `/api/exportacoes/${ids[i]}/download`, cookie: E.cookie });
         t.igual(r.status, esperado, rotulo);
         if (esperado === 404) t.igual(codigoDe(r), "ARQUIVO_NAO_ENCONTRADO", `${rotulo} (codigo)`);
@@ -767,7 +837,7 @@ const CHECKS_FASE_A = [
           t.igual(r.headers["cache-control"], "private, no-store", "Cache-Control");
           obs.push(`legitimo=${r.status} corpo igual=${r.texto === conteudo} CD="${r.headers["content-disposition"]}" CC="${r.headers["cache-control"]}"`);
         } else {
-          obs.push(`${rotulo}=${resumo(r)}`);
+          obs.push(`${rotulo}=${resumo(r)}${rotulo === "caminho com NUL" ? " (NUL preservado no registro)" : ""}`);
         }
       }
       for (const invalido of ["abc", "1.5", "-1", "1e3"]) {
@@ -816,18 +886,69 @@ const CHECKS_FASE_A = [
     },
   ],
   [
+    "PROC-1",
+    "controle positivo da consulta de processos: com um fixture vivo (pid do proprio fixture) a lista o inclui; depois de morto, nao",
+    async (t) => {
+      await garantirCookie();
+      const pidFile = novoPidFile("lento.pid");
+      const inicio = await iniciarExp(`PROC-A-${aleatorio(3)}`);
+      t.igual(inicio.status, 202, "POST");
+      const id = inicio.json?.id;
+      const pid = await esperarPid(pidFile);
+      if (pid === null) return t.falhas.push("o fixture nao gravou o pid (controle impossivel)");
+      const texto = controlePositivo(t, [pid], "fixture do servidor");
+      const cancelou = await cancelarExp(id);
+      t.igual(cancelou.json?.ok, true, "cancelar");
+      const morto = await esperarMorte(pid);
+      t.ok(morto, `pid ${pid} continua vivo apos cancelar`);
+      // Controle negativo: a mesma consulta, depois da morte, nao pode mais listar o pid.
+      const depois = await esperarSemFakeTeams();
+      if (depois === null) t.pular("consulta de processos falhou depois da morte do fixture");
+      else t.ok(!depois.includes(pid), `o pid ${pid} morto ainda aparece na lista: [${depois.join(",")}]`);
+      t.nota(`${texto ?? "controle positivo nao concluido"}; apos cancelar: morto=${morto}, lista [${depois?.join(",") ?? "?"}]`);
+    },
+  ],
+  [
     "ERR-1",
     "apos a fase A nenhum processo fake-teams sobrou",
     async (t) => {
-      const lista = await esperarSemFakeTeams();
-      if (lista === null) return t.pular("nao foi possivel consultar a lista de processos");
-      t.igual(lista.length, 0, "processos fake-teams restantes");
-      t.nota(`fake-teams restantes=${lista.length}${lista.length ? ` (pids ${lista.join(",")})` : ""}`);
+      const lista = await semFakeTeams(t, "nao sobrou fake-teams");
+      if (lista) t.nota(`fake-teams restantes=${lista.length}`);
     },
   ],
 ];
 
 // ------------------------------------------------------------------ fases seguintes
+
+/**
+ * Controle positivo da consulta na fase B (servidor com timeout curto): o fixture do servidor vive so ~1,8 s,
+ * curto demais para consultar; entao o script sobe ele mesmo um fixture `arvore` (pai + neto desacoplado, como o
+ * do servidor) so para provar que a consulta enxerga PAI e NETO vivos nesta configuracao, e que deixa de enxerga-los
+ * depois que morrem. Isso sustenta a afirmacao "pai e neto sumiram" do TMO-1.
+ */
+async function checkControleArvore(t) {
+  const pidFile = novoPidFile("controle-arvore.pid");
+  const saida = path.join(E.tmp, "controle-arvore.json");
+  const pai = spawn(process.execPath, [FIXTURE, "CONTROLE", "--json-out", saida], {
+    env: { ...process.env, FAKE_MODO: "arvore", FAKE_PID_FILE: pidFile },
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  E.extras.add(pai.pid);
+  const neto = await esperarPid(pidFile);
+  if (neto === null) return t.falhas.push("o fixture de controle nao gravou o pid do neto");
+  E.extras.add(neto);
+  const texto = controlePositivo(t, [pai.pid, neto], "pai e neto do fixture arvore");
+  matarArvore(pai.pid);
+  matarArvore(neto);
+  const paiMorto = await esperarMorte(pai.pid);
+  const netoMorto = await esperarMorte(neto);
+  t.ok(paiMorto && netoMorto, `o fixture de controle nao morreu (pai=${paiMorto}, neto=${netoMorto})`);
+  const depois = await esperarSemFakeTeams();
+  if (depois === null) t.pular("consulta de processos falhou depois da morte do fixture de controle");
+  else t.ok(!depois.includes(pai.pid) && !depois.includes(neto), `pai/neto mortos ainda na lista: [${depois.join(",")}]`);
+  t.nota(`${texto ?? "controle positivo nao concluido"}; apos matar: pai morto=${paiMorto}, neto morto=${netoMorto}, lista [${depois?.join(",") ?? "?"}]`);
+}
 
 async function checkTimeout(t) {
   await garantirCookie();
@@ -842,15 +963,20 @@ async function checkTimeout(t) {
   if (neto === null) t.pular("o fixture nao chegou a gravar o pid do neto antes do timeout de ~1,8 s");
   const netoMorto = neto ? await esperarMorte(neto) : null;
   if (neto) t.ok(netoMorto, `neto ${neto} continua vivo`);
-  const lista = await esperarSemFakeTeams();
-  if (lista === null) t.pular("nao foi possivel consultar a lista de processos");
-  else t.igual(lista.length, 0, "processos fake-teams restantes (pai e neto)");
+  const lista = await semFakeTeams(t, "pai e neto sumiram apos o timeout");
+
+  // Segundo ciclo: com timeout de ~1,8 s, cancelar logo ou ja ter expirado sao desfechos legitimos; o lock tem de estar livre.
   const outro = await iniciarECancelar(`TMO-B-${aleatorio(3)}`, pidFile);
   t.ok(!outro.erro, `lock: novo POST -> ${outro.erro}`);
-  const listaFinal = await esperarSemFakeTeams();
-  if (listaFinal !== null) t.igual(listaFinal.length, 0, "processos fake-teams apos o segundo ciclo");
+  if (!outro.erro) {
+    t.ok(["cancelada", "erro"].includes(outro.status), `status do segundo ciclo: ${outro.status}`);
+    if (outro.status === "cancelada") t.igual(outro.cancelou, true, "cancelar respondeu ok:true mas o status nao e cancelada (ou o inverso)");
+    if (outro.pid === null) t.pular("o fixture do segundo ciclo nao gravou o pid antes do timeout");
+    else t.ok(outro.morto === true, `pid ${outro.pid} do segundo ciclo continua vivo`);
+  }
+  const listaFinal = await semFakeTeams(t, "nada sobrou apos o segundo ciclo");
   t.nota(
-    `status=${exp?.status}; erroMsg contem "Tempo esgotado"=${String(exp?.erroMsg ?? "").includes("Tempo esgotado")}; neto pid ${neto ?? "?"} morto=${netoMorto}; pai+neto: fake-teams restantes=${lista?.length ?? "?"}; novo POST=202 (lock livre), cancelar=${outro.cancelou} status=${outro.status}, neto morto=${outro.morto}; restantes ao final=${listaFinal?.length ?? "?"}`
+    `status=${exp?.status}; erroMsg contem "Tempo esgotado"=${String(exp?.erroMsg ?? "").includes("Tempo esgotado")}; neto pid ${neto ?? "?"} morto=${netoMorto}; pai+neto: fake-teams restantes=${lista?.length ?? "?"}; novo POST=202 (lock livre), cancelar=${outro.cancelou} status=${outro.status}, pid ${outro.pid ?? "?"} morto=${outro.morto}; restantes ao final=${listaFinal?.length ?? "?"}`
   );
 }
 
@@ -863,15 +989,16 @@ async function checkOrfao(t) {
   const neto = await esperarPid(pidFile);
   t.ok(neto !== null, "o pid do neto nunca foi gravado");
   t.ok(neto === null || vivo(neto), "o neto nao estava vivo antes do cancelamento");
+  // Controle positivo com o neto (pid lido do fixture) vivo, ANTES de cancelar.
+  const controle = neto !== null ? controlePositivo(t, [neto], "neto do servidor antes de cancelar") : null;
   const cancelou = await cancelarExp(id);
   t.igual(cancelou.json?.ok, true, "cancelar");
   const exp = await esperarStatus(id, ["cancelada", "erro", "concluida"]);
   t.igual(exp?.status, "cancelada", "status apos cancelar");
   const morto = neto ? await esperarMorte(neto) : false;
   t.ok(morto, `neto ${neto} continua vivo`);
-  const lista = await esperarSemFakeTeams();
-  if (lista !== null) t.igual(lista.length, 0, "processos fake-teams restantes");
-  t.nota(`cancelar=${cancelou.json?.ok} -> ${exp?.status}; neto pid ${neto ?? "?"} morto=${morto}; fake-teams restantes=${lista?.length ?? "?"}`);
+  const lista = await semFakeTeams(t, "nada sobrou apos cancelar");
+  t.nota(`${controle ?? "controle positivo nao concluido"}; cancelar=${cancelou.json?.ok} -> ${exp?.status}; neto pid ${neto ?? "?"} morto=${morto}; fake-teams restantes=${lista?.length ?? "?"}`);
 }
 
 const CONFIG_BOOT = { modo: "lento", pidFile: "", timeoutMin: 30 };
@@ -914,11 +1041,12 @@ function limpar() {
   if (E.limpo) return;
   E.limpo = true;
   if (E.servidor) matarArvore(E.servidor.pid);
-  // Pids gravados pelo fixture: so mata o que e mesmo um fake-teams (o pid pode ter sido reaproveitado).
-  const gravados = [...E.pidFiles].map(lerPid).filter(Boolean);
+  // Pids gravados pelo fixture e fixtures de controle: so mata o que e mesmo um fake-teams (o pid pode ter sido reaproveitado).
+  const gravados = [...new Set([...[...E.pidFiles].map(lerPid).filter(Boolean), ...E.extras])].filter(vivo);
   if (gravados.length) {
-    const fakes = pidsFakeTeams() ?? [];
-    for (const pid of gravados) if (fakes.includes(pid)) matarArvore(pid);
+    const fakes = pidsFakeTeams();
+    if (fakes === null) console.error(`aviso: nao consegui listar processos; pids ${gravados.join(",")} nao foram encerrados (podem ser de outro processo)`);
+    else for (const pid of gravados) if (fakes.includes(pid)) matarArvore(pid);
   }
   if (E.junction) {
     // Remover a JUNCTION (nao o alvo): rmSync recursivo poderia seguir o link e apagar o conteudo de fora.
@@ -975,6 +1103,7 @@ async function principal() {
     await pararServidor();
 
     await iniciarServidor({ rotulo: "B", modo: "arvore", pidFile: novoPidFile("arvore.pid"), timeoutMin: 0.03 });
+    await rodar("PROC-2", "controle positivo da consulta na fase B: pai e neto de um fixture arvore vivos aparecem na lista; mortos, somem", checkControleArvore);
     await rodar("TMO-1", "timeout (~1,8 s): erro 'Tempo esgotado', pai e neto mortos, lock livre", checkTimeout);
     await pararServidor();
 
@@ -1011,7 +1140,11 @@ async function principal() {
   console.log(`\nResumo: ${conta("PASS")} PASS, ${conta("FAIL")} FAIL, ${conta("SKIP")} SKIP`);
   const puladas = E.resultados.filter((r) => r.estado === "SKIP").map((r) => r.id);
   if (puladas.length) console.log(`Pulados: ${puladas.join(", ")}`);
-  return conta("FAIL") === 0 ? 0 : 1;
+  // SKIP de um check inteiro = algo NAO foi provado (ex.: a consulta de processos falhou): nao sai com 0. So os sub-casos
+  // com limitacao conhecida (ex.: NUL nao sobrevive ao SQLite) sao tolerados.
+  const naoProvados = E.resultados.filter((r) => r.estado === "SKIP" && !r.tolerado).length;
+  if (naoProvados) console.log(`${naoProvados} check(s) nao provado(s) (SKIP): saindo com codigo 2.`);
+  return conta("FAIL") > 0 ? 1 : naoProvados ? 2 : 0;
 }
 
 for (const sinal of ["SIGINT", "SIGTERM"]) {

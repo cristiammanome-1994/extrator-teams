@@ -1,0 +1,35 @@
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { lerConfigExportacao } from "./config";
+
+const base = path.resolve("/proj/app");
+const raiz = path.resolve("/proj");
+
+describe("lerConfigExportacao", () => {
+  it("usa padrões relativos à pasta app/", () => {
+    const c = lerConfigExportacao({}, base);
+    expect(c.cwd).toBe(raiz);
+    expect(c.script).toBe(path.join(raiz, "teams_chat_export.py"));
+    expect(c.exportsDir).toBe(path.join(raiz, "exports"));
+    expect(c.python).toBe(
+      path.join(raiz, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python")
+    );
+    expect(c.timeoutMs).toBe(30 * 60_000);
+  });
+
+  it("variáveis vazias contam como ausentes", () => {
+    const c = lerConfigExportacao({ TEAMS_PYTHON: "", TEAMS_SCRIPT: "", EXTRATOR_TIMEOUT_MIN: "" }, base);
+    expect(c.script).toBe(path.join(raiz, "teams_chat_export.py"));
+    expect(c.timeoutMs).toBe(30 * 60_000);
+  });
+
+  it("aceita sobrescritas (caminhos relativos partem de app/)", () => {
+    const c = lerConfigExportacao(
+      { TEAMS_PYTHON: "C:\\py\\python.exe", TEAMS_SCRIPT: "../outro.py", EXTRATOR_TIMEOUT_MIN: "5" },
+      base
+    );
+    expect(c.python).toBe(path.resolve(base, "C:\\py\\python.exe"));
+    expect(c.script).toBe(path.resolve(base, "../outro.py"));
+    expect(c.timeoutMs).toBe(5 * 60_000);
+  });
+});

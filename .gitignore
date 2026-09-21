@@ -1,0 +1,22 @@
+# Sessão logada do Teams e ambiente Python
+teams_profile/
+.venv/
+__pycache__/
+
+# Conteúdo de conversas (sensível) e artefatos de diagnóstico
+exports/
+chat_teams_*.txt
+debug_busca.png
+
+# App (Next.js)
+app/node_modules/
+app/.next/
+app/data/
+app/test-results/
+app/playwright-report/
+app/tsconfig.tsbuildinfo
+
+# Segredos e logs
+.env
+.env.local
+*.log

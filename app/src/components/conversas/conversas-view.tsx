@@ -13,7 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useGrupos } from "@/hooks/useGrupos";
 import { useRecursoRemoto } from "@/hooks/useRecursoRemoto";
+import { selecionarDadosDoGrupo } from "@/lib/dadosDoGrupo";
 import { formatarNumero } from "@/lib/formatacao";
+import { cn } from "@/lib/utils";
 import type { Mensagem } from "@/types/dominio";
 import { LinhaMensagem } from "./linha-mensagem";
 
@@ -23,6 +25,7 @@ interface RespostaMensagens {
   pagina: number;
   porPagina: number;
   autores: string[];
+  grupoId: number;
 }
 
 const FILTROS_VAZIOS = { autor: "", de: "", ate: "", q: "" };
@@ -50,6 +53,9 @@ export function ConversasView() {
   const { dados, erro, carregando, recarregar } = useRecursoRemoto<RespostaMensagens>(url, {
     manterDadoAnterior: true,
   });
+
+  // Logo após trocar de grupo o cache ainda devolve o último dado do endpoint, que é do grupo anterior.
+  const dadosDoGrupo = selecionarDadosDoGrupo(dados, grupoId);
 
   function trocarGrupo(id: number) {
     setGrupoEscolhido(id);
@@ -81,7 +87,7 @@ export function ConversasView() {
     );
   }
 
-  const totalPaginas = dados ? Math.max(1, Math.ceil(dados.total / dados.porPagina)) : 1;
+  const totalPaginas = dadosDoGrupo ? Math.max(1, Math.ceil(dadosDoGrupo.total / dadosDoGrupo.porPagina)) : 1;
 
   return (
     <div className="space-y-4">
@@ -93,7 +99,7 @@ export function ConversasView() {
           onChange={(e) => setRascunho({ ...rascunho, autor: e.target.value })}
         >
           <option value="">Todos os autores</option>
-          {(dados?.autores ?? []).map((autor) => (
+          {(dadosDoGrupo?.autores ?? []).map((autor) => (
             <option key={autor} value={autor}>
               {autor}
             </option>
@@ -120,13 +126,13 @@ export function ConversasView() {
 
       {erro && <ErrorState message={erro.message} onRetry={() => void recarregar()} />}
 
-      <Card>
+      <Card aria-busy={carregando} className={cn(carregando && dadosDoGrupo && "opacity-60 transition-opacity")}>
         <CardContent className="pt-4">
-          {carregando && !dados ? (
+          {carregando && !dadosDoGrupo ? (
             <Skeleton className="h-64 w-full" />
-          ) : dados && dados.itens.length === 0 ? (
+          ) : dadosDoGrupo && dadosDoGrupo.itens.length === 0 ? (
             <EmptyState title="Nenhuma mensagem com esses filtros" />
-          ) : dados ? (
+          ) : dadosDoGrupo ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -136,7 +142,7 @@ export function ConversasView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dados.itens.map((m) => (
+                {dadosDoGrupo.itens.map((m) => (
                   <LinhaMensagem key={m.id} mensagem={m} />
                 ))}
               </TableBody>
@@ -145,9 +151,9 @@ export function ConversasView() {
         </CardContent>
       </Card>
 
-      {dados && (
+      {dadosDoGrupo && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{formatarNumero(dados.total)} mensagens</span>
+          <span>{formatarNumero(dadosDoGrupo.total)} mensagens</span>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setPagina(pagina - 1)} disabled={pagina <= 1}>
               <ChevronLeft className="size-4" />

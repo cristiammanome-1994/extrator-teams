@@ -15,6 +15,7 @@ app/data/
 app/test-results/
 app/playwright-report/
 app/tsconfig.tsbuildinfo
+app/next-env.d.ts
 
 # Segredos e logs
 .env

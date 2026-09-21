@@ -217,12 +217,38 @@ def scrape_history(page, max_iterations=400, stagnant_limit=4, scroll_wait_ms=70
     return list(seen.values())
 
 
-def build_txt(group_name, records):
+def sort_records(records):
+    """Ordena do mais antigo para o mais recente; datas ilegíveis vão para o fim."""
     def sort_key(r):
         dt = parse_pt_datetime(r["timeTitle"])
         return (dt is None, dt)
 
-    records_sorted = sorted(records, key=sort_key)
+    return sorted(records, key=sort_key)
+
+
+def build_json(group_name, records, exported_at=None):
+    """Monta o conteúdo do --json-out: as mesmas mensagens do .txt, estruturadas.
+
+    A data fica no texto original do Teams ("terça-feira, 8 de setembro de
+    2026 11:09"); quem consome interpreta. Autor ausente vira "(desconhecido)".
+    """
+    exported_at = exported_at or datetime.datetime.now()
+    return {
+        "grupo": group_name,
+        "exportado_em": exported_at.strftime("%Y-%m-%dT%H:%M:%S"),
+        "mensagens": [
+            {
+                "autor": r["author"] or "(desconhecido)",
+                "data_hora_original": r["timeTitle"],
+                "texto": r["text"],
+            }
+            for r in sort_records(records)
+        ],
+    }
+
+
+def build_txt(group_name, records):
+    records_sorted = sort_records(records)
 
     lines = []
     lines.append(f"Histórico do chat: {group_name}")
@@ -243,6 +269,7 @@ def main():
     parser.add_argument("--profile-dir", default="./teams_profile", help="Pasta onde a sessão do navegador fica salva (padrão: ./teams_profile)")
     parser.add_argument("--output", default=None, help="Caminho do arquivo .txt de saída (padrão: ./exports/<nome_do_grupo>_<data>.txt)")
     parser.add_argument("--headless", action="store_true", help="Rodar sem mostrar a janela do navegador (só funciona se a sessão já estiver logada)")
+    parser.add_argument("--json-out", default=None, help="Caminho de um .json com as mensagens estruturadas (além do .txt)")
     args = parser.parse_args()
 
     profile_dir = Path(args.profile_dir).expanduser().resolve()
@@ -281,6 +308,16 @@ def main():
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(txt, encoding="utf-8")
+
+        if args.json_out:
+            json_path = Path(args.json_out).expanduser().resolve()
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            json_path.write_text(
+                json.dumps(build_json(args.group_name, records), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f">> JSON salvo em: {json_path}")
+
         print(f">> Pronto! Arquivo salvo em: {out_path}")
 
         context.close()

@@ -39,6 +39,14 @@ describe("importarTxt", () => {
     expect(importarTxt(db, TXT)).toMatchObject({ lidas: 2, novas: 0 });
   });
 
+  it("não marca a última exportação do grupo (só uma exportação de verdade marca)", () => {
+    importarTxt(db, TXT);
+    const grupo = db.prepare("SELECT ultima_exportacao_em FROM grupos WHERE nome = ?").get("Grupo de Teste") as unknown as {
+      ultima_exportacao_em: string | null;
+    };
+    expect(grupo.ultima_exportacao_em).toBeNull();
+  });
+
   it("sinaliza divergência entre o total declarado e o lido", () => {
     const r = importarTxt(db, TXT.replace("Total de mensagens: 2", "Total de mensagens: 5"));
     expect(r.divergencia).toBe(true);
@@ -86,6 +94,31 @@ describe("importarJson", () => {
       ultima_exportacao_em: string | null;
     };
     expect(grupo.ultima_exportacao_em).not.toBeNull();
+  });
+
+  it("é idempotente: importar o mesmo JSON duas vezes não duplica mensagens", () => {
+    const id = tentarCriarExportacao(db, "Grupo JSON", "2026-09-21T10:00:00.000Z")!;
+    expect(importarJson(db, id, json)).toEqual({ grupo: "Grupo JSON", lidas: 2, novas: 2 });
+    const antes = db.prepare("SELECT COUNT(*) AS n FROM mensagens").get() as unknown as { n: number };
+
+    expect(importarJson(db, id, json)).toEqual({ grupo: "Grupo JSON", lidas: 2, novas: 0 });
+    const depois = db.prepare("SELECT COUNT(*) AS n FROM mensagens").get() as unknown as { n: number };
+    expect(depois.n).toBe(antes.n);
+    expect(depois.n).toBe(2);
+  });
+
+  it("lista de mensagens vazia: cria o grupo, lê 0 e marca a última exportação", () => {
+    const id = tentarCriarExportacao(db, "Grupo Vazio", "2026-09-21T10:00:00.000Z")!;
+    const r = importarJson(db, id, { grupo: "Grupo Vazio", mensagens: [] });
+    expect(r).toEqual({ grupo: "Grupo Vazio", lidas: 0, novas: 0 });
+
+    const grupo = db.prepare("SELECT nome, ultima_exportacao_em FROM grupos WHERE nome = ?").get("Grupo Vazio") as unknown as {
+      nome: string;
+      ultima_exportacao_em: string | null;
+    };
+    expect(grupo.nome).toBe("Grupo Vazio");
+    expect(grupo.ultima_exportacao_em).not.toBeNull();
+    expect(listarGrupos(db).find((g) => g.nome === "Grupo Vazio")!.total).toBe(0);
   });
 
   it("recusa estrutura inválida", () => {

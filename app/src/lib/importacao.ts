@@ -77,5 +77,6 @@ export function importarJson(db: DatabaseSync, exportacaoId: number, dado: unkno
     return { autor, dataHoraOriginal: data_hora_original, texto };
   });
 
+  // Lista vazia é aceita: cria o grupo, devolve lidas 0 / novas 0 e ainda marca a última exportação.
   return importarMensagens(db, { grupoNome: grupo.trim(), exportacaoId, mensagens: lidas });
 }

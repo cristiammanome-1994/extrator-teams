@@ -26,7 +26,7 @@ export function lerConfigExportacao(env: Record<string, string | undefined> = pr
     python: env.TEAMS_PYTHON ? path.resolve(base, env.TEAMS_PYTHON) : path.join(raiz, pythonPadrao),
     script: env.TEAMS_SCRIPT ? path.resolve(base, env.TEAMS_SCRIPT) : path.join(raiz, "teams_chat_export.py"),
     cwd: raiz,
-    exportsDir: path.join(raiz, "exports"),
+    exportsDir: env.EXTRATOR_EXPORTS_DIR ? path.resolve(base, env.EXTRATOR_EXPORTS_DIR) : path.join(raiz, "exports"),
     timeoutMs: (Number.isFinite(minutos) && minutos > 0 ? minutos : TIMEOUT_PADRAO_MIN) * 60_000,
   };
 }

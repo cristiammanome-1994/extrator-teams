@@ -32,4 +32,23 @@ describe("lerConfigExportacao", () => {
     expect(c.script).toBe(path.resolve(base, "../outro.py"));
     expect(c.timeoutMs).toBe(5 * 60_000);
   });
+
+  describe("EXTRATOR_EXPORTS_DIR", () => {
+    it("sem a variavel, a pasta continua sendo <raiz>/exports", () => {
+      expect(lerConfigExportacao({}, base).exportsDir).toBe(path.join(raiz, "exports"));
+    });
+
+    it("caminho absoluto sobrescreve a pasta", () => {
+      const abs = path.resolve("/tmp/outra-pasta");
+      expect(lerConfigExportacao({ EXTRATOR_EXPORTS_DIR: abs }, base).exportsDir).toBe(abs);
+    });
+
+    it("caminho relativo parte de app/", () => {
+      expect(lerConfigExportacao({ EXTRATOR_EXPORTS_DIR: "../saidas" }, base).exportsDir).toBe(path.resolve(base, "../saidas"));
+    });
+
+    it("variavel vazia conta como ausente", () => {
+      expect(lerConfigExportacao({ EXTRATOR_EXPORTS_DIR: "" }, base).exportsDir).toBe(path.join(raiz, "exports"));
+    });
+  });
 });

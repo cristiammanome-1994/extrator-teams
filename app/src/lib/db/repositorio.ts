@@ -119,25 +119,40 @@ function mapearExportacao(l: Linha): Exportacao {
   };
 }
 
+/** Violação do índice único de exportação em andamento (a mensagem é a do SQLite). */
+function ehViolacaoDeUnicidade(erro: unknown): boolean {
+  return erro instanceof Error && /UNIQUE constraint failed: exportacoes\.status/i.test(erro.message);
+}
+
 /**
- * Cria a execução se — e só se — não houver outra em andamento. A checagem e a
- * inserção acontecem na mesma transação `BEGIN IMMEDIATE`, então duas
- * chamadas simultâneas (mesmo de instâncias diferentes do módulo) nunca
- * criam duas execuções: o `teams_profile` só aceita um Edge por vez.
+ * Cria a execução se — e só se — não houver outra em andamento; devolve `null` quando há.
+ * O teams_profile só aceita um Edge por vez. Garantias:
+ * - a checagem e a inserção rodam numa transação `BEGIN IMMEDIATE`, que serializa chamadas
+ *   concorrentes (de outras conexões ou processos): quem chega depois espera o lock de escrita
+ *   por até `busy_timeout` (5 s, definido em `obterBanco`) e então enxerga a linha em andamento;
+ * - o índice único parcial `uq_exportacoes_em_andamento` impõe o mesmo limite no próprio banco,
+ *   mesmo que alguém insira sem passar por esta função; se ele barrar a inserção, a transação é
+ *   desfeita e o resultado também é `null`. Qualquer outro erro (inclusive SQLITE_BUSY após o
+ *   `busy_timeout`) é relançado.
  */
 export function tentarCriarExportacao(db: DatabaseSync, grupoNome: string, agoraIso: string): number | null {
-  return transacao(
-    db,
-    () => {
-      if (uma(db, "SELECT id FROM exportacoes WHERE status = 'em_andamento' LIMIT 1")) return null;
-      const grupoId = obterOuCriarGrupo(db, grupoNome);
-      const r = db
-        .prepare("INSERT INTO exportacoes (grupo_id, status, etapa, iniciada_em) VALUES (?, 'em_andamento', 'iniciando', ?)")
-        .run(grupoId, agoraIso);
-      return Number(r.lastInsertRowid);
-    },
-    true
-  );
+  try {
+    return transacao(
+      db,
+      () => {
+        if (uma(db, "SELECT id FROM exportacoes WHERE status = 'em_andamento' LIMIT 1")) return null;
+        const grupoId = obterOuCriarGrupo(db, grupoNome);
+        const r = db
+          .prepare("INSERT INTO exportacoes (grupo_id, status, etapa, iniciada_em) VALUES (?, 'em_andamento', 'iniciando', ?)")
+          .run(grupoId, agoraIso);
+        return Number(r.lastInsertRowid);
+      },
+      true
+    );
+  } catch (erro) {
+    if (ehViolacaoDeUnicidade(erro)) return null;
+    throw erro;
+  }
 }
 
 export function atualizarExportacao(db: DatabaseSync, id: number, campos: CamposExportacao): void {

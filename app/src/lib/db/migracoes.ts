@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS mensagens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mensagens_grupo_data ON mensagens (grupo_id, data_hora);
+
+-- No máximo uma exportação em andamento, garantido pelo próprio banco (vale para qualquer conexão
+-- ou processo, mesmo que alguém insira sem passar por tentarCriarExportacao).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_exportacoes_em_andamento ON exportacoes (status) WHERE status = 'em_andamento';
 `;
 
 export function aplicarEsquema(db: DatabaseSync): void {

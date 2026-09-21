@@ -29,6 +29,9 @@ export function obterBanco(): DatabaseSync {
   // lendo enquanto uma exportação grava.
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = NORMAL");
+  // Sem isso, uma segunda conexão que encontra o lock de escrita ocupado recebe SQLITE_BUSY na hora,
+  // em vez de esperar e enxergar a exportação em andamento.
+  db.exec("PRAGMA busy_timeout = 5000");
   aplicarEsquema(db);
 
   // Uma execução `em_andamento` que sobrou de antes deste boot não tem mais

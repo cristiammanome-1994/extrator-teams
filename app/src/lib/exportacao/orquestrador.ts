@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { createInterface } from "node:readline";
+import { createInterface, type Interface } from "node:readline";
 import type { DatabaseSync } from "node:sqlite";
 import { atualizarExportacao, tentarCriarExportacao, type CamposExportacao } from "@/lib/db/repositorio";
 import { importarJson } from "@/lib/importacao";
@@ -25,6 +25,23 @@ interface Execucao {
   timer: NodeJS.Timeout;
   cancelada: boolean;
   expirou: boolean;
+  /** O processo já saiu (evento `exit`): cancelar ou expirar deixou de fazer sentido. */
+  saiu: boolean;
+}
+
+/**
+ * Encerra a árvore do processo; se isso falhar (pid não encontrado, taskkill ausente) e o filho
+ * ainda estiver vivo, cai no kill direto do processo filho, para ao menos a raiz não sobreviver.
+ */
+function encerrarExecucao(execucao: Execucao): void {
+  if (encerrarArvore(execucao.child.pid)) return;
+  const filho = execucao.child;
+  if (filho.exitCode !== null || filho.signalCode !== null) return;
+  try {
+    filho.kill("SIGKILL");
+  } catch {
+    // Já terminou, ou o sistema recusou: não há mais o que tentar.
+  }
 }
 
 /**
@@ -96,12 +113,16 @@ export function iniciarExportacao(deps: DepsOrquestrador, grupoBruto: unknown): 
   return { ok: true, id };
 }
 
-/** Encerra a árvore de processos de uma exportação. `false` se ela não está rodando. */
+/**
+ * Encerra a árvore de processos de uma exportação. `false` se ela não está rodando — inclusive
+ * quando o processo já saiu e só falta ler as últimas linhas: aí o resultado já está decidido
+ * (uma exportação bem-sucedida nunca vira `cancelada`) e o pid pode nem existir mais.
+ */
 export function cancelarExportacao(id: number): boolean {
   const execucao = execucoes.get(id);
-  if (!execucao) return false;
+  if (!execucao || execucao.saiu) return false;
   execucao.cancelada = true;
-  encerrarArvore(execucao.child.pid);
+  encerrarExecucao(execucao);
   return true;
 }
 
@@ -112,6 +133,7 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
   let ultimaLinhaStderr: string | undefined;
   let finalizado = false;
   let child: ChildProcess | undefined;
+  const leitores: Interface[] = [];
 
   /**
    * Grava o estado final uma única vez, seja qual for o caminho que chegou aqui.
@@ -137,6 +159,15 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
       execucoes.delete(id);
       child?.stdout?.destroy();
       child?.stderr?.destroy();
+      // Destruir os pipes não faz o readline emitir `close`: sem fechar, uma drenagem que estourou
+      // o tempo deixaria as duas interfaces (e a promessa que espera por elas) vivas.
+      for (const leitor of leitores) {
+        try {
+          leitor.close();
+        } catch {
+          // Já fechado.
+        }
+      }
     }
   };
 
@@ -165,9 +196,11 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
     child: filho,
     cancelada: false,
     expirou: false,
+    saiu: false,
     timer: setTimeout(() => {
+      if (execucao.saiu) return;
       execucao.expirou = true;
-      encerrarArvore(filho.pid);
+      encerrarExecucao(execucao);
     }, config.timeoutMs),
   };
   execucoes.set(id, execucao);
@@ -188,16 +221,17 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
 
   filho.stdout!.setEncoding("utf8");
   filho.stderr!.setEncoding("utf8");
-  const saida = createInterface({ input: filho.stdout! });
-  const erros = createInterface({ input: filho.stderr! });
-  saida.on("line", (linha) => {
+  const leitorSaida = createInterface({ input: filho.stdout! });
+  const leitorErros = createInterface({ input: filho.stderr! });
+  leitores.push(leitorSaida, leitorErros);
+  leitorSaida.on("line", (linha) => {
     try {
       tratarLinha(linha);
     } catch (erro) {
       falharInternamente(erro);
     }
   });
-  erros.on("line", (linha) => {
+  leitorErros.on("line", (linha) => {
     try {
       if (linha.trim()) ultimaLinhaStderr = linha;
       tratarLinha(linha);
@@ -206,8 +240,8 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
     }
   });
   const leituraCompleta = Promise.all([
-    new Promise<void>((resolver) => saida.on("close", resolver)),
-    new Promise<void>((resolver) => erros.on("close", resolver)),
+    new Promise<void>((resolver) => leitorSaida.on("close", resolver)),
+    new Promise<void>((resolver) => leitorErros.on("close", resolver)),
   ]);
 
   filho.on("error", (erro) => {
@@ -221,6 +255,12 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
   // Decide no 'exit' (o processo acabou), não no 'close': um descendente que herdou os pipes
   // os manteria abertos e o 'close' nunca chegaria. A leitura das últimas linhas é limitada.
   filho.on("exit", async (codigo, sinal) => {
+    // O desfecho é decidido AGORA: cancelar/expirar durante a drenagem chegaria tarde demais
+    // (e um pid morto) e não pode transformar uma exportação bem-sucedida em cancelada.
+    execucao.saiu = true;
+    clearTimeout(execucao.timer);
+    const cancelada = execucao.cancelada;
+    const expirou = execucao.expirou;
     try {
       let temporizador: NodeJS.Timeout | undefined;
       await Promise.race([
@@ -232,8 +272,8 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
       clearTimeout(temporizador);
       if (finalizado) return;
 
-      if (execucao.cancelada) return finalizar({ status: "cancelada", erroMsg: null });
-      if (execucao.expirou) {
+      if (cancelada) return finalizar({ status: "cancelada", erroMsg: null });
+      if (expirou) {
         return finalizar({
           status: "erro",
           erroMsg: `Tempo esgotado (limite de ${descreverLimite(config.timeoutMs)}). A exportação foi encerrada.`,
@@ -247,6 +287,9 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
         return finalizar({ status: "erro", erroMsg: `${inicio}${ultima ? ` Última linha: ${ultima}` : ""}` });
       }
 
+      if (!existsSync(arquivoJson)) {
+        return finalizar({ status: "erro", erroMsg: "O script terminou sem gerar o arquivo .json da exportação." });
+      }
       try {
         const resultado = importarJson(db, id, JSON.parse(readFileSync(arquivoJson, "utf8")));
         finalizar({ status: "concluida", totalMensagens: resultado.lidas, contador: resultado.lidas, erroMsg: null });

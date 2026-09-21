@@ -34,7 +34,7 @@ export function Navbar() {
           <span className="flex size-8 items-center justify-center rounded bg-primary text-primary-foreground">
             <Download className="size-4" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">
+          <span className="hidden text-sm font-semibold tracking-tight sm:inline">
             Extrator <span className="text-primary">Teams</span>
           </span>
         </Link>
@@ -46,6 +46,7 @@ export function Navbar() {
               <Link
                 key={href}
                 href={href}
+                aria-label={label}
                 aria-current={ativo ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -53,7 +54,7 @@ export function Navbar() {
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                <span className="hidden sm:inline">{label}</span>
               </Link>
             );
           })}

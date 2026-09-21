@@ -14,15 +14,37 @@ export function GraficoPorDia({ porDia }: { porDia: Kpis["porDia"] }) {
       </CardHeader>
       <CardContent>
         {porDia.length === 0 ? (
-          <EmptyState title="Sem datas interpretáveis" description="Nenhuma mensagem deste filtro tem data conhecida." />
+          <EmptyState title="Nenhuma mensagem no período" description="Ajuste o período ou escolha outro grupo." />
         ) : (
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porDia}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="dia" tickFormatter={formatarDia} minTickGap={32} tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} width={36} tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis
+                  dataKey="dia"
+                  tickFormatter={formatarDia}
+                  minTickGap={32}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={{ stroke: "var(--border)" }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  width={36}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={{ stroke: "var(--border)" }}
+                />
                 <Tooltip
+                  contentStyle={{
+                    background: "var(--popover)",
+                    color: "var(--popover-foreground)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                  }}
+                  labelStyle={{ color: "var(--popover-foreground)" }}
+                  itemStyle={{ color: "var(--popover-foreground)" }}
+                  cursor={{ fill: "var(--muted)", opacity: 0.5 }}
                   labelFormatter={(dia) => formatarDia(String(dia))}
                   formatter={(valor) => [String(valor), "Mensagens"]}
                 />

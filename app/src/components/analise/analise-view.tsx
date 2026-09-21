@@ -68,8 +68,20 @@ export function AnaliseView() {
             setAplicado(PERIODO_VAZIO);
           }}
         />
-        <Input type="date" aria-label="De" value={rascunho.de} onChange={(e) => setRascunho({ ...rascunho, de: e.target.value })} />
-        <Input type="date" aria-label="Até" value={rascunho.ate} onChange={(e) => setRascunho({ ...rascunho, ate: e.target.value })} />
+        <Input
+          type="date"
+          aria-label="De"
+          max={rascunho.ate || undefined}
+          value={rascunho.de}
+          onChange={(e) => setRascunho({ ...rascunho, de: e.target.value })}
+        />
+        <Input
+          type="date"
+          aria-label="Até"
+          min={rascunho.de || undefined}
+          value={rascunho.ate}
+          onChange={(e) => setRascunho({ ...rascunho, ate: e.target.value })}
+        />
         <Button type="submit">Aplicar período</Button>
       </form>
 

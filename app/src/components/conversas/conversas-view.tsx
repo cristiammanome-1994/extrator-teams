@@ -91,7 +91,7 @@ export function ConversasView() {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={filtrar} className="grid gap-2 md:grid-cols-[2fr_1fr_1fr_1fr_2fr_auto]">
+      <form onSubmit={filtrar} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1.3fr_1.1fr_1.1fr_2fr_auto]">
         <SeletorGrupo grupos={grupos} valor={grupoId} onChange={trocarGrupo} />
         <SelectNativo
           aria-label="Autor"
@@ -138,7 +138,7 @@ export function ConversasView() {
                 <TableRow>
                   <TableHead className="w-40">Data e hora</TableHead>
                   <TableHead className="w-56">Autor</TableHead>
-                  <TableHead>Mensagem</TableHead>
+                  <TableHead className="min-w-[16rem]">Mensagem</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -153,7 +153,9 @@ export function ConversasView() {
 
       {dadosDoGrupo && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{formatarNumero(dadosDoGrupo.total)} mensagens</span>
+          <span>
+            {formatarNumero(dadosDoGrupo.total)} {dadosDoGrupo.total === 1 ? "mensagem" : "mensagens"}
+          </span>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setPagina(pagina - 1)} disabled={pagina <= 1}>
               <ChevronLeft className="size-4" />

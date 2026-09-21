@@ -19,7 +19,9 @@ export function RankingAutores({ porAutor }: { porAutor: Kpis["porAutor"] }) {
             {porAutor.map((a) => (
               <li key={a.autor} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="truncate font-medium">{a.autor}</span>
+                  <span className="min-w-0 truncate font-medium" title={a.autor}>
+                    {a.autor}
+                  </span>
                   <span className="tabular-nums text-muted-foreground">{formatarNumero(a.total)}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted">

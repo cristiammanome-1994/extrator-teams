@@ -6,6 +6,7 @@ import { AlertTriangle, Download, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { destinoSeguro } from "@/lib/auth/destino";
 
 export function LoginView() {
   const router = useRouter();
@@ -29,11 +30,10 @@ export function LoginView() {
         setErro(corpo?.error?.message ?? "Não foi possível entrar.");
         return;
       }
-      // `de` vem do proxy; só aceito caminho interno para o parâmetro não
+      // `de` vem do proxy, mas qualquer um pode forjar o link de login; o
+      // destino é validado (URL parseada, mesma origem) para o parâmetro não
       // virar um redirecionamento aberto para fora do app.
-      const de = parametros.get("de");
-      const destino = de && de.startsWith("/") && !de.startsWith("//") ? de : "/";
-      router.replace(destino);
+      router.replace(destinoSeguro(parametros.get("de"), window.location.origin));
       router.refresh();
     } catch {
       setErro("Falha de rede. Tente novamente.");

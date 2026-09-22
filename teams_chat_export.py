@@ -179,7 +179,7 @@ def open_chat(page, group_name, timeout_seconds=30):
     page.wait_for_timeout(1000)
 
 
-def scrape_history(page, max_iterations=400, stagnant_limit=4, scroll_wait_ms=700):
+def scrape_history(page, max_iterations=800, stagnant_limit=8, scroll_wait_ms=1500):
     seen = {}
 
     def merge_current():

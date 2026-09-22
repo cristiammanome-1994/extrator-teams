@@ -11,11 +11,14 @@ Abra o terminal na pasta onde salvou os arquivos (`teams_chat_export.py`,
 
 ```
 pip install -r requirements.txt
-playwright install chromium
 ```
 
-Se preferir usar o Claude Code, pode simplesmente abrir esta pasta nele e
-pedir para ele rodar esses dois comandos por você.
+O script usa o **Microsoft Edge** já instalado no Windows (não é preciso
+baixar o Chromium). Se preferir usar o Claude Code, pode simplesmente abrir
+esta pasta nele e pedir para ele rodar esse comando por você.
+
+Quer usar por uma interface web em vez da linha de comando? Veja `app/README.md`
+(rode `scripts\setup.ps1` e depois `iniciar.bat`).
 
 ## Como usar
 
@@ -44,6 +47,8 @@ Ao final, o histórico completo é salvo em `exports/<nome_do_grupo>_<data>.txt`
 - `--output CAMINHO` — muda o nome/local do arquivo de saída.
 - `--headless` — roda sem abrir a janela do navegador (só funciona se você já
   tiver logado antes com esse mesmo `--profile-dir`).
+- `--json-out CAMINHO` — além do `.txt`, grava um `.json` com as mensagens
+  estruturadas (é o que o app web em `app/` usa).
 
 ## O que o script NÃO faz
 

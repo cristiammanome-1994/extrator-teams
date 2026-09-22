@@ -171,3 +171,21 @@ Navegação (`app-shell` adaptado): **Exportações**, **Conversas**, **Análise
 4. Orquestrador e API de exportação.
 5. Telas: Exportações, Conversas e Análise.
 6. Smoke tests, scripts de setup/start e README.
+
+## Ajustes definidos no plano de implementação
+
+Decididos ao detalhar o plano; valem no lugar do texto acima onde divergirem.
+
+- **Versão do Next:** `next` e `eslint-config-next` ficaram fixados em
+  **16.3.5** (não 16.3.2), por causa de dois avisos de RCE que o `npm audit`
+  encontrou na 16.3.2; a 16.3.5 já traz a correção.
+- **Lock de exportação única:** em vez de portar `lockSincronizacao`, a checagem é atômica no banco (`BEGIN IMMEDIATE` + existência de linha `em_andamento`). Mesmo comportamento, sem depender de variável de módulo.
+- **Tabela de conversas:** `Table` do shadcn com paginação no servidor, sem TanStack (filtro e paginação já são do backend).
+- **Importar `.txt`:** cartão na tela Exportações, não um modal.
+- **Porta:** fixa (51794) nos scripts; `EXTRATOR_PORTA` foi removida.
+- **Selects:** `<select>` nativo estilizado, sem o Select do base-ui.
+- **Upload:** `experimental.proxyClientMaxBodySize = "21mb"` no `next.config.ts`, porque o proxy de sessão faz o Next bufferizar o corpo e cortar em 10 MB por padrão.
+- **Setup:** o script usa o Edge instalado (`channel="msedge"`); `scripts\setup.ps1` não baixa o Chromium.
+- **Origem:** o proxy de sessão também recusa (403 `ORIGEM_INVALIDA`) requisições que alteram estado cujo cabeçalho `Origin` não bata com o `Host`, além de exigir o cookie de sessão.
+- **Pasta de exportações configurável:** `EXTRATOR_EXPORTS_DIR` (opcional; padrão `<raiz do projeto>/exports`) permite apontar a pasta de exportações para outro lugar, usada pela verificação de aceite em servidor real (`npm run verificar:api`) para nunca tocar na pasta `exports/` de verdade.
+- **Verificação de aceite em servidor real:** `app/scripts/verificar-api.mjs` (`npm run verificar:api`) sobe um `next start` de produção numa porta dedicada (51795) com banco e pasta de exportações temporários, e confere por HTTP real autenticação, origem, limites de upload, travessia de caminho no download, importação idempotente, concorrência, cancelamento, timeout, morte de processos órfãos e reconciliação após queda do servidor. Sai com 0 (tudo passou), 1 (algum check falhou) ou 2 (algum check não pôde ser provado, reportado como SKIP).

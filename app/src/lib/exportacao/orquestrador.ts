@@ -32,15 +32,19 @@ interface Execucao {
 /**
  * Encerra a árvore do processo; se isso falhar (pid não encontrado, taskkill ausente) e o filho
  * ainda estiver vivo, cai no kill direto do processo filho, para ao menos a raiz não sobreviver.
+ *
+ * Devolve `true` se o encerramento foi feito (pela árvore, pelo fallback, ou porque o processo já
+ * tinha saído sozinho) e `false` se nada disso funcionou — quem chama decide o que fazer com isso.
  */
-function encerrarExecucao(execucao: Execucao): void {
-  if (encerrarArvore(execucao.child.pid)) return;
+function encerrarExecucao(execucao: Execucao): boolean {
+  if (encerrarArvore(execucao.child.pid)) return true;
   const filho = execucao.child;
-  if (filho.exitCode !== null || filho.signalCode !== null) return;
+  if (filho.exitCode !== null || filho.signalCode !== null) return true;
   try {
-    filho.kill("SIGKILL");
+    return filho.kill("SIGKILL");
   } catch {
     // Já terminou, ou o sistema recusou: não há mais o que tentar.
+    return false;
   }
 }
 
@@ -95,9 +99,10 @@ export function iniciarExportacao(deps: DepsOrquestrador, grupoBruto: unknown): 
   try {
     mkdirSync(config.exportsDir, { recursive: true });
     const arquivoJson = path.join(config.exportsDir, `exportacao_${id}.json`);
+    const arquivoTxt = path.join(config.exportsDir, `exportacao_${id}.txt`);
     atualizarExportacao(db, id, { arquivoJson });
 
-    executar(deps, id, grupo.nome, arquivoJson);
+    executar(deps, id, grupo.nome, arquivoJson, arquivoTxt);
   } catch (erro) {
     try {
       atualizarExportacao(db, id, {
@@ -122,11 +127,10 @@ export function cancelarExportacao(id: number): boolean {
   const execucao = execucoes.get(id);
   if (!execucao || execucao.saiu) return false;
   execucao.cancelada = true;
-  encerrarExecucao(execucao);
-  return true;
+  return encerrarExecucao(execucao);
 }
 
-function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson: string): void {
+function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson: string, arquivoTxt: string): void {
   const { db, config } = deps;
   const agora = deps.agora ?? (() => new Date());
   const linhas: string[] = [];
@@ -180,7 +184,7 @@ function executar(deps: DepsOrquestrador, id: number, grupo: string, arquivoJson
   };
 
   try {
-    child = spawn(config.python, [config.script, grupo, "--json-out", arquivoJson], {
+    child = spawn(config.python, [config.script, grupo, "--json-out", arquivoJson, "--output", arquivoTxt], {
       cwd: config.cwd,
       env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
       stdio: ["ignore", "pipe", "pipe"],

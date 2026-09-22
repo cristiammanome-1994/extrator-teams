@@ -20,6 +20,10 @@ if (process.env.FAKE_NETO) {
 const args = process.argv.slice(2);
 const grupo = args[0];
 const saida = args[args.indexOf("--json-out") + 1];
+// Se `--output` não for passado (chamador antigo), cai no caminho fixo de sempre: mantém o
+// fixture compatível e faz com que a ausência do argumento continue visível nos testes.
+const idxSaidaTxt = args.indexOf("--output");
+const saidaTxt = idxSaidaTxt !== -1 ? args[idxSaidaTxt + 1] : "C:\\fake\\arquivo.txt";
 const modo = process.env.FAKE_MODO ?? "sucesso";
 
 console.log("\n>> Uma janela do navegador foi aberta.");
@@ -75,4 +79,5 @@ if (modo === "json-invalido") {
   );
 }
 console.log(`>> JSON salvo em: ${saida}`);
-console.log(">> Pronto! Arquivo salvo em: C:\\fake\\arquivo.txt");
+if (idxSaidaTxt !== -1) writeFileSync(saidaTxt, "conteudo fake do .txt\n");
+console.log(`>> Pronto! Arquivo salvo em: ${saidaTxt}`);

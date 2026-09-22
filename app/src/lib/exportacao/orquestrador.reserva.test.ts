@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { ChildProcess, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -88,5 +88,20 @@ describe("plano B quando encerrarArvore falha", () => {
     const e = obterExportacao(db, id)!;
     expect(e.status).toBe("erro");
     expect(e.erroMsg).toMatch(/Tempo esgotado/);
+  }, 20_000);
+
+  it("cancelar devolve false quando o fallback SIGKILL também falha (nenhum kill funcionou)", async () => {
+    // encerrarArvore já está simulado (sempre false, do mock do topo do arquivo); aqui o fallback
+    // `child.kill("SIGKILL")` também é simulado como falho, para o teste não depender de conseguir
+    // matar o processo de verdade. O afterEach mata o processo real pelo pid gravado em FAKE_PID_FILE.
+    const filhoKill = vi.spyOn(ChildProcess.prototype, "kill").mockReturnValue(false);
+    try {
+      const id = iniciar();
+      await aguardar(() => obterExportacao(db, id)!.etapa === "lendo_historico");
+
+      expect(cancelarExportacao(id)).toBe(false);
+    } finally {
+      filhoKill.mockRestore();
+    }
   }, 20_000);
 });

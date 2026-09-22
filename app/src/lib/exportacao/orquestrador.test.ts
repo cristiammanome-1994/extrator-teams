@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aplicarEsquema } from "@/lib/db/migracoes";
 import { consultarMensagens, listarGrupos, obterExportacao } from "@/lib/db/repositorio";
+import { estaDentro } from "./caminhos";
 import type { ConfigExportacao } from "./config";
 import { cancelarExportacao, iniciarExportacao } from "./orquestrador";
 
@@ -111,7 +112,7 @@ describe("iniciarExportacao", () => {
       grupoAberto: "Grupo XAna, Bruno, +2",
       contador: 2,
       totalMensagens: 2,
-      arquivoTxt: "C:\\fake\\arquivo.txt",
+      arquivoTxt: path.join(config.exportsDir, `exportacao_${id}.txt`),
       erroMsg: null,
     });
     expect(e.finalizadaEm).not.toBeNull();
@@ -122,6 +123,20 @@ describe("iniciarExportacao", () => {
       "Primeira",
       "Segunda",
     ]);
+  });
+
+  it("passa --output apontando para dentro de exportsDir, e o .txt reportado fica dentro dele (EXTRATOR_EXPORTS_DIR)", async () => {
+    const id = iniciar("Grupo X");
+    await aguardar(() => terminou(id));
+
+    const e = obterExportacao(db, id)!;
+    expect(e.status).toBe("concluida");
+    expect(e.arquivoTxt).not.toBeNull();
+    // Regressão: sem `--output`, o script escreveria o .txt no seu próprio padrão (cwd),
+    // ignorando `config.exportsDir` — o que quebraria o download se os dois divergirem
+    // (ex.: EXTRATOR_EXPORTS_DIR configurado para outro lugar).
+    expect(estaDentro(config.exportsDir, e.arquivoTxt!)).toBe(true);
+    expect(e.arquivoTxt).toMatch(/\.txt$/);
   });
 
   it("erro do script: status erro com código e última linha", async () => {

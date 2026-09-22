@@ -34,6 +34,8 @@
 - **Importar `.txt`:** cartão na própria tela Exportações, não um modal.
 - **Porta:** fixa (51794) nos scripts; `EXTRATOR_PORTA` foi removida.
 - **Selects:** `<select>` nativo estilizado (evita a API do Select do base-ui).
+- **Versão do Next:** `next` e `eslint-config-next` acabaram em **16.3.5** (não 16.3.2, como escrito acima e no código da Task 2), porque o `npm audit` acusou duas falhas de RCE no 16.3.2, corrigidas nessa versão de patch. Decidido durante a Task 2; ver `docs/superpowers/specs/2026-09-21-extrator-teams-app-design.md`.
+- **Hardening além do plano:** as Tasks 8–9 ganharam três passos extras de endurecimento (H1a: banco e orquestrador; H1b: rotas e proxy; H2: verificação em servidor real, `app/scripts/verificar-api.mjs`) para atender às validações explícitas pedidas pelo usuário (concorrência, timeout/cancelamento, órfãos, path traversal, limite real de upload, idempotência). Um passo de polimento visual (P1) também não estava no plano original.
 
 ## Estrutura de arquivos
 

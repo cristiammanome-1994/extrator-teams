@@ -1,6 +1,12 @@
 import { Users } from "lucide-react";
 import type { ReactNode } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+
+/** Sprite 8-bit com fundo transparente, em `public/sprites` (mesma arte usada nos outros sistemas da Gmaster). */
+function Sprite({ arquivo, alt }: { arquivo: string; alt: string }) {
+  // eslint-disable-next-line @next/next/no-img-element -- arte local fixa, sem next/image: mesmo padrão do projeto de referência.
+  return <img src={`/sprites/${arquivo}.png`} alt={alt} className="mx-auto h-40 w-auto drop-shadow-sm" />;
+}
 
 const PASSOS: { titulo: string; texto: string }[] = [
   {
@@ -79,17 +85,29 @@ export function SobreView() {
       </Secao>
 
       <Secao titulo="Créditos">
-        <Card>
-          <CardContent className="flex items-start gap-3 pt-4">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Users className="size-4" aria-hidden />
-            </span>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              <strong className="font-semibold text-foreground">Extrator Teams</strong> foi idealizado e desenvolvido
-              por <strong className="font-semibold text-foreground">Cristiam Hideyuki Ieda Manome</strong>, com o
-              Claude Code.
-            </p>
-          </CardContent>
+        <Card className="px-5 py-4">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 items-end gap-4">
+              <figure className="space-y-1.5 text-center">
+                <Sprite arquivo="cleyson-retrato" alt="Cleyson Peixoto em pixel art, de camisa xadrez, segurando uma caneca" />
+                <figcaption className="text-xs font-medium">Cleyson Peixoto</figcaption>
+              </figure>
+              <figure className="space-y-1.5 text-center">
+                <Sprite arquivo="cristiam-retrato" alt="Cristiam Manome em pixel art, de boné e camiseta azul de corrida" />
+                <figcaption className="text-xs font-medium">Cristiam Manome</figcaption>
+              </figure>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="size-4" aria-hidden />
+              </span>
+              <p className="text-sm leading-relaxed">
+                <strong className="font-semibold">Extrator Teams</strong> foi idealizado e executado pelo{" "}
+                <strong className="font-semibold">setor de Projetos</strong>{" "}
+                <span className="text-muted-foreground">(Cleyson Peixoto e Cristiam Manome)</span>.
+              </p>
+            </div>
+          </div>
         </Card>
       </Secao>
     </div>

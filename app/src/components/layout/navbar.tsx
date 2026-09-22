@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, Download, LogOut, MessageSquare } from "lucide-react";
+import { Activity, Download, Info, LogOut, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
@@ -11,6 +11,7 @@ const ITENS = [
   { href: "/", label: "Exportações", icon: Download },
   { href: "/conversas", label: "Conversas", icon: MessageSquare },
   { href: "/analise", label: "Análise", icon: Activity },
+  { href: "/sobre", label: "Sobre", icon: Info },
 ];
 
 function itemAtivo(href: string, pathname: string): boolean {

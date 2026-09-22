@@ -50,6 +50,7 @@ test("login e navegação pelas três telas, sem erro de console", async ({ page
     { path: "/", heading: "Exportações" },
     { path: "/conversas", heading: "Conversas" },
     { path: "/analise", heading: "Análise" },
+    { path: "/sobre", heading: "Sobre" },
   ]) {
     await test.step(`abre ${path}`, async () => {
       await page.goto(path);
@@ -58,6 +59,16 @@ test("login e navegação pelas três telas, sem erro de console", async ({ page
   }
 
   expect(errosDeConsole, `Erros de console durante a navegação:\n${errosDeConsole.join("\n")}`).toEqual([]);
+});
+
+test("a aba Sobre mostra a página Sobre e o Changelog", async ({ page }) => {
+  await login(page);
+  await page.goto("/sobre");
+
+  await expect(page.getByRole("heading", { level: 2, name: "Para que serve" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Changelog" }).click();
+  await expect(page.getByText("Lançamento do Extrator Teams")).toBeVisible();
 });
 
 test("recusa senha incorreta e mantém a pessoa na tela de login", async ({ page }) => {

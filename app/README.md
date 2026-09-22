@@ -6,11 +6,14 @@ acompanha o progresso e guarda as mensagens num banco SQLite.
 
 - **Exportações:** informe o nome do grupo e clique em Exportar. Uma janela do
   Edge abre para o login do Teams (você faz o login; o app nunca vê a senha).
-  Também importa `.txt` antigos.
+  Também importa `.txt` antigos e exclui itens do histórico (junto com as
+  mensagens que aquela execução trouxe).
 - **Conversas:** leia as mensagens de um grupo, filtre por autor e período,
   busque no texto.
 - **Análise:** total de mensagens, autores, média por dia, gráfico por dia e
   ranking de autores.
+- **Sobre:** para que serve o app, como usar cada tela, e o changelog
+  (`src/lib/changelog.ts` — acrescente uma entrada ali a cada mudança visível).
 
 ## Requisitos
 
@@ -90,3 +93,9 @@ caso a execução não conta como aprovada.
 - O app exige mesma origem em requisições que alteram estado (veja "Notas de
   segurança" acima): chamar a API por outra origem/ferramenta que não o
   próprio navegador recebe 403 a não ser que `Origin`/`Host` batam.
+- Excluir um item do histórico apaga as mensagens que ELE trouxe, não as do
+  grupo inteiro. Se o mesmo grupo foi reexportado depois e uma mensagem já
+  existia, ela continua marcada com a execução mais antiga (quem inseriu de
+  fato) — excluir essa execução apaga essa mensagem também, mesmo a
+  reexportação mais recente tendo "confirmado" ela de novo. Não há como saber,
+  só pelo banco, que duas execuções trouxeram a mesma mensagem.

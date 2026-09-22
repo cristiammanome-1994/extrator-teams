@@ -5,6 +5,7 @@ import {
   atualizarExportacao,
   consultarMensagens,
   dadosParaKpis,
+  excluirExportacao,
   inserirMensagens,
   listarAutores,
   listarExportacoes,
@@ -74,6 +75,53 @@ describe("exportações", () => {
     expect(e.status).toBe("erro");
     expect(e.erroMsg).toMatch(/interrompida/i);
     expect(e.finalizadaEm).toBe("2026-09-21T12:00:00.000Z");
+  });
+
+  it("excluirExportacao apaga a linha e as mensagens que ela trouxe", () => {
+    const id = tentarCriarExportacao(db, "G1", "2026-09-21T10:00:00.000Z")!;
+    atualizarExportacao(db, id, { status: "concluida" });
+    const grupoId = obterOuCriarGrupo(db, "G1");
+    inserirMensagens(db, grupoId, id, [
+      { autor: "Ana", dataHora: "2026-09-21T10:00", dataHoraOriginal: "orig1", texto: "desta execução" },
+    ]);
+    // Mensagem sem exportação (ex.: importada de um .txt antigo) não pode ser tocada.
+    inserirMensagens(db, grupoId, null, [
+      { autor: "Ana", dataHora: "2026-09-20T10:00", dataHoraOriginal: "orig2", texto: "importada à parte" },
+    ]);
+
+    const resultado = excluirExportacao(db, id);
+
+    expect(resultado).toEqual({ ok: true, mensagensRemovidas: 1 });
+    expect(obterExportacao(db, id)).toBeNull();
+    const restantes = consultarMensagens(db, { grupoId }, 1, 50).itens;
+    expect(restantes).toHaveLength(1);
+    expect(restantes[0].texto).toBe("importada à parte");
+  });
+
+  it("excluirExportacao não toca em mensagens de OUTRA execução do mesmo grupo", () => {
+    const g = obterOuCriarGrupo(db, "G1");
+    const a = tentarCriarExportacao(db, "G1", "2026-09-21T10:00:00.000Z")!;
+    atualizarExportacao(db, a, { status: "concluida" });
+    inserirMensagens(db, g, a, [{ autor: "Ana", dataHora: "2026-09-20T10:00", dataHoraOriginal: "a", texto: "de A" }]);
+    const b = tentarCriarExportacao(db, "G1", "2026-09-21T11:00:00.000Z")!;
+    atualizarExportacao(db, b, { status: "concluida" });
+    inserirMensagens(db, g, b, [{ autor: "Ana", dataHora: "2026-09-21T10:00", dataHoraOriginal: "b", texto: "de B" }]);
+
+    expect(excluirExportacao(db, a)).toEqual({ ok: true, mensagensRemovidas: 1 });
+
+    const restantes = consultarMensagens(db, { grupoId: g }, 1, 50).itens;
+    expect(restantes).toHaveLength(1);
+    expect(restantes[0].texto).toBe("de B");
+  });
+
+  it("excluirExportacao recusa uma execução em andamento, sem apagar nada", () => {
+    const id = tentarCriarExportacao(db, "G1", "2026-09-21T10:00:00.000Z")!;
+    expect(excluirExportacao(db, id)).toEqual({ ok: false, motivo: "em_andamento" });
+    expect(obterExportacao(db, id)).not.toBeNull();
+  });
+
+  it("excluirExportacao devolve nao_encontrada para um id que não existe", () => {
+    expect(excluirExportacao(db, 999)).toEqual({ ok: false, motivo: "nao_encontrada" });
   });
 });
 

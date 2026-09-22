@@ -171,6 +171,32 @@ export function listarExportacoes(db: DatabaseSync, limite = 50): Exportacao[] {
   return todas(db, `${SELECT_EXPORTACAO} ORDER BY e.id DESC LIMIT ?`, limite).map(mapearExportacao);
 }
 
+export type ResultadoExclusao =
+  | { ok: true; mensagensRemovidas: number }
+  | { ok: false; motivo: "nao_encontrada" | "em_andamento" };
+
+/**
+ * Apaga a execução e as mensagens que ELA trouxe (`mensagens.exportacao_id = id`) — não as do
+ * grupo inteiro. Mensagens importadas por um `.txt` avulso (`exportacao_id` nulo) nunca são
+ * tocadas. Se o grupo foi reexportado depois e uma mensagem já existia, ela continua marcada com
+ * a execução mais antiga (quem inseriu de fato); apagar essa execução apaga essa mensagem também,
+ * mesmo a reexportação mais recente tendo "confirmado" ela de novo — não há como saber, só pelo
+ * banco, que duas execuções trouxeram a mesma mensagem.
+ *
+ * Recusa uma execução `em_andamento` (cancele antes) e devolve `nao_encontrada` para um id que não
+ * existe. Não mexe no arquivo `.txt`/`.json` em disco — isso é responsabilidade de quem chama.
+ */
+export function excluirExportacao(db: DatabaseSync, id: number): ResultadoExclusao {
+  return transacao(db, () => {
+    const linha = uma(db, "SELECT status FROM exportacoes WHERE id = ?", id);
+    if (!linha) return { ok: false, motivo: "nao_encontrada" };
+    if (linha.status === "em_andamento") return { ok: false, motivo: "em_andamento" };
+    const removidas = db.prepare("DELETE FROM mensagens WHERE exportacao_id = ?").run(id).changes;
+    db.prepare("DELETE FROM exportacoes WHERE id = ?").run(id);
+    return { ok: true, mensagensRemovidas: Number(removidas) };
+  });
+}
+
 /** Execuções que ficaram `em_andamento` de uma sessão anterior do servidor. */
 export function reconciliarInterrompidas(db: DatabaseSync, agoraIso: string): number {
   const r = db

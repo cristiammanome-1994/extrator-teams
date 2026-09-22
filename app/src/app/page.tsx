@@ -27,7 +27,11 @@ export default function ExportacoesPage() {
 
       {ativa && <CardProgresso exportacao={ativa} onCancelada={() => void recarregar()} />}
 
-      {exportacoes === null ? <Skeleton className="h-40 w-full" /> : <TabelaExportacoes exportacoes={exportacoes} />}
+      {exportacoes === null ? (
+        <Skeleton className="h-40 w-full" />
+      ) : (
+        <TabelaExportacoes exportacoes={exportacoes} onExcluida={() => void recarregar()} />
+      )}
 
       <ImportarTxt />
     </div>

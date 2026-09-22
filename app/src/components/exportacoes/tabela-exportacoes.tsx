@@ -5,9 +5,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/states/empty-state";
 import { formatarDuracao, formatarInstante, formatarNumero } from "@/lib/formatacao";
 import type { Exportacao } from "@/types/dominio";
+import { ExcluirExportacaoDialog } from "./excluir-exportacao-dialog";
 import { StatusExportacaoBadge } from "./status-exportacao-badge";
 
-export function TabelaExportacoes({ exportacoes }: { exportacoes: Exportacao[] }) {
+const STATUS_FINAIS = new Set<Exportacao["status"]>(["concluida", "erro", "cancelada"]);
+
+export function TabelaExportacoes({
+  exportacoes,
+  onExcluida,
+}: {
+  exportacoes: Exportacao[];
+  onExcluida: () => void;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -47,15 +56,20 @@ export function TabelaExportacoes({ exportacoes }: { exportacoes: Exportacao[] }
                     {e.totalMensagens !== null ? formatarNumero(e.totalMensagens) : "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {e.status === "concluida" && e.arquivoTxt && (
-                      <a
-                        href={`/api/exportacoes/${e.id}/download`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        <Download className="mr-1 size-3.5" />
-                        .txt
-                      </a>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {e.status === "concluida" && e.arquivoTxt && (
+                        <a
+                          href={`/api/exportacoes/${e.id}/download`}
+                          className={buttonVariants({ variant: "outline", size: "sm" })}
+                        >
+                          <Download className="mr-1 size-3.5" />
+                          .txt
+                        </a>
+                      )}
+                      {STATUS_FINAIS.has(e.status) && (
+                        <ExcluirExportacaoDialog exportacao={e} onExcluida={onExcluida} />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

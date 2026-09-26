@@ -32,9 +32,24 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
-## 2026-09-26 — Análise: filtro por autor, atalhos de período e gráficos por hora e dia da semana
+## 2026-09-26 — Ciclo 4 (fallback via Graph API) adiado; extração passa de 11/02/2025
 
 **Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [contexto-ia.md](contexto-ia.md) (a nota só altera o diário)
+
+**O quê.** Decisão de **não** implementar agora o fallback de coleta via Microsoft Graph API, último dos 4 ciclos de aproveitamento dos outros projetos (a origem seria o projeto teams-chat-exporter, com MSAL, paginação, retry em 429 e filtro por período). Estado registrado: ciclos 1, 2 e 3 commitados (`b6b591b`, `136845e`, `e3f2957`) e enviados ao GitHub; origin/main = `e3f2957`.
+
+**Por quê.** O fallback existia porque o scraper (`teams_chat_export.py`, `scrape_history`) parava em 11/02/2025 no grupo "Projetos | Tecnologia", apesar de o chat ser mais antigo. O commit `56af216` aumentou a tolerância (`max_iterations` 400→800, `stagnant_limit` 4→8, `scroll_wait_ms` 700→1500) e o usuário confirmou que a extração agora passa dessa data. **Essa validação é informada pelo usuário:** nenhuma sessão de IA conseguiu rodar a extração (o Teams pediu login e o script expirou esperando; o login é feito por pessoa). Não foi confirmada por execução da IA, nem se checou a data da mensagem mais antiga no arquivo exportado.
+
+**Como.** O Graph foi avaliado e adiado. Custo: autenticação MSAL com possível aprovação de admin do tenant para o consentimento (Chat.Read etc.), um segundo caminho de coleta para manter ao lado do scraper, e um contrato novo entre ele e o app (que hoje só entende o JSON do scraper: flags `--json-out`/`--output`, `parseProgresso`, importação). Sem ganho enquanto o scraper atende.
+
+**Impacto.** interno, sem efeito visível.
+
+**Pendências.** Gatilho para reabrir o ciclo 4: só se o scraper voltar a truncar o histórico em chats muito longos, ou se quiserem extrair sem abrir o navegador. Isso é mudança arquitetural: começar por levantamento e perguntas antes de código. Se reabrirem, conferir também a data da mensagem mais antiga do arquivo exportado do grupo "Projetos | Tecnologia" para confirmar a validação por execução. Pendências herdadas do ciclo 3 continuam valendo (PDF impresso com gráficos novos não visto; eixo de horas com `interval=1`; Excel da Análise sem recorte no nome do arquivo; teste flutuante `exportacoes/route.test.ts` com EBUSY no Windows).
+
+## 2026-09-26 — Análise: filtro por autor, atalhos de período e gráficos por hora e dia da semana
+
+**Branch:** `main` · **Commits:** `e3f2957`
 **Arquivos:** [kpis.ts](app/src/lib/kpis.ts), [periodoAnalise.ts](app/src/lib/periodoAnalise.ts), [formatacao.ts](app/src/lib/formatacao.ts), [rota de análise](app/src/app/api/analise/route.ts), [eixo.ts](app/src/components/charts/eixo.ts), [grafico-por-hora.tsx](app/src/components/analise/grafico-por-hora.tsx), [grafico-por-semana.tsx](app/src/components/analise/grafico-por-semana.tsx), [grafico-por-dia.tsx](app/src/components/analise/grafico-por-dia.tsx), [kpi-cards-analise.tsx](app/src/components/analise/kpi-cards-analise.tsx), [analise-view.tsx](app/src/components/analise/analise-view.tsx), [changelog.ts](app/src/lib/changelog.ts)
 
 **O quê.** Na tela Análise: filtro por autor; atalhos de período (Tudo, Últimos 7/30/90 dias) com o ativo destacado; contador de filtros ativos e botão Limpar; gráficos novos "por hora do dia" e "por dia da semana"; cartões "Horário de pico" e "Dia mais movimentado". O Excel e o PDF da Análise passam a respeitar o recorte (grupo, período e autor).
@@ -49,7 +64,7 @@ Revisão: `natasha`, 5 achados, todos tratados (texto/título do Excel agora diz
 
 **Impacto.** Visível para quem usa. A resposta de `/api/analise` ganhou o campo `autores`. Com autor filtrado, a aba "Por autor" do Excel tem 1 linha.
 
-**Pendências.** (1) Ver o PDF impresso com os gráficos novos. (2) O eixo de horas usa `interval=1` e mostra só horas pares; pico numa hora ímpar só aparece no tooltip. (3) O Excel da Análise não traz o recorte escrito nem no nome do arquivo (o PDF traz na referência). (4) Ajustar à parte o teste flutuante `exportacoes/route.test.ts` (EBUSY no Windows). (5) Ciclo 4 (fallback via Graph API) por fazer. (6) Nada commitado.
+**Pendências.** (1) Ver o PDF impresso com os gráficos novos. (2) O eixo de horas usa `interval=1` e mostra só horas pares; pico numa hora ímpar só aparece no tooltip. (3) O Excel da Análise não traz o recorte escrito nem no nome do arquivo (o PDF traz na referência). (4) Ajustar à parte o teste flutuante `exportacoes/route.test.ts` (EBUSY no Windows). (5) Ciclo 4 (fallback via Graph API) adiado, ver a entrada "Ciclo 4 (fallback via Graph API) adiado". (6) Commitado como `e3f2957` e enviado ao GitHub (origin/main = `e3f2957`).
 
 ## 2026-09-26 — Exportar CSV/Excel e PDF (Conversas e Análise)
 

@@ -16,6 +16,16 @@ export function formatarDia(iso: string): string {
   return `${dia}/${mes}/${ano}`;
 }
 
+/**
+ * Recorte da Análise em partes de texto (`autor: Ana`, `de 08/09/2026`, `até 09/09/2026`), o que a
+ * referência do PDF e o nome do Excel mostram. Só entra o que foi filtrado.
+ */
+export function partesDoRecorte({ autor, de, ate }: { autor?: string; de?: string; ate?: string }): string[] {
+  return [autor && `autor: ${autor}`, de && `de ${formatarDia(de)}`, ate && `até ${formatarDia(ate)}`].filter(
+    (p): p is string => Boolean(p)
+  );
+}
+
 /** Instante ISO (UTC) para data e hora locais. */
 export function formatarInstante(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });

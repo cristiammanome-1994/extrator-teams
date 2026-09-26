@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGrupos } from "@/hooks/useGrupos";
 import { useRecursoRemoto } from "@/hooks/useRecursoRemoto";
 import { selecionarDadosDoGrupo } from "@/lib/dadosDoGrupo";
-import { formatarDia } from "@/lib/formatacao";
+import { partesDoRecorte } from "@/lib/formatacao";
 import type { Kpis } from "@/lib/kpis";
 import {
   ATALHOS_PERIODO,
@@ -92,12 +92,7 @@ export function AnaliseView() {
 
   // Período sem mensagens: nada a baixar nem a imprimir (a tela irmã, Conversas, também desabilita com total 0).
   const temDados = (dadosDoGrupo?.kpis.total ?? 0) > 0;
-  const recorte = [
-    aplicado.autor && `autor: ${aplicado.autor}`,
-    aplicado.de && `de ${formatarDia(aplicado.de)}`,
-    aplicado.ate && `até ${formatarDia(aplicado.ate)}`,
-  ].filter(Boolean);
-  const referenciaPdf = [grupoAtual?.nome, ...recorte].filter(Boolean).join(" · ");
+  const referenciaPdf = [grupoAtual?.nome, ...partesDoRecorte(aplicado)].filter(Boolean).join(" · ");
   // Mesmo recorte da tela: grupo, período e autor aplicados.
   const hrefExportar = url === null ? null : url.replace("/api/analise?", "/api/analise/exportar?");
 

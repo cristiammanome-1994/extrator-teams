@@ -4,6 +4,7 @@ import {
   formatarDia,
   formatarDuracao,
   formatarNumero,
+  partesDoRecorte,
   rotuloHora,
   rotuloIntervaloHora,
 } from "./formatacao";
@@ -22,6 +23,21 @@ describe("formatação", () => {
   it("formata duração", () => {
     expect(formatarDuracao("2026-09-21T10:00:00.000Z", "2026-09-21T10:00:42.000Z")).toBe("42 s");
     expect(formatarDuracao("2026-09-21T10:00:00.000Z", "2026-09-21T10:03:05.000Z")).toBe("3 min 5 s");
+  });
+});
+
+describe("partesDoRecorte", () => {
+  it("descreve autor e período, na ordem em que a tela mostra", () => {
+    expect(partesDoRecorte({ autor: "Ana Teste", de: "2026-09-08", ate: "2026-09-09" })).toEqual([
+      "autor: Ana Teste",
+      "de 08/09/2026",
+      "até 09/09/2026",
+    ]);
+  });
+
+  it("omite o que não foi filtrado", () => {
+    expect(partesDoRecorte({})).toEqual([]);
+    expect(partesDoRecorte({ de: "2026-09-08" })).toEqual(["de 08/09/2026"]);
   });
 });
 

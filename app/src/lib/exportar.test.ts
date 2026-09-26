@@ -59,6 +59,21 @@ describe("nomeArquivoExportacao", () => {
     expect(nomeArquivoExportacao("|||", "csv", dia)).toBe("exportacao-2026-09-26.csv");
     expect(nomeArquivoExportacao("x".repeat(500), "csv", dia).length).toBeLessThan(100);
   });
+
+  it("acrescenta o recorte entre o nome e a data, no mesmo formato do PDF", () => {
+    const nome = nomeArquivoExportacao("Grupo analise", "xlsx", dia, "autor: Ana Teste · de 08/09/2026 · até 09/09/2026");
+    expect(nome).toBe("Grupo-analise-autor-Ana-Teste-de-08-09-2026-ate-09-09-2026-2026-09-26.xlsx");
+  });
+
+  it("nome de grupo comprido não engole o recorte", () => {
+    const nome = nomeArquivoExportacao("x".repeat(500), "xlsx", dia, "de 08/09/2026");
+    expect(nome).toContain("-de-08-09-2026-2026-09-26.xlsx");
+  });
+
+  it("recorte vazio ou só símbolos deixa o nome como era", () => {
+    expect(nomeArquivoExportacao("Grupo", "xlsx", dia, "")).toBe("Grupo-2026-09-26.xlsx");
+    expect(nomeArquivoExportacao("Grupo", "xlsx", dia, "|||")).toBe("Grupo-2026-09-26.xlsx");
+  });
 });
 
 describe("gerarXlsx", () => {

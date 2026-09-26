@@ -78,6 +78,9 @@ afterEach(async () => {
           // Já terminou.
         }
       }
+      // O kill só pede o fim: enquanto o processo vive ele pode segurar arquivo dentro de `tmp` (no Windows, EBUSY).
+      // Preventivo: a falha não foi reproduzida (25 execuções), a causa é hipótese.
+      await aguardar(() => !processoVivo(Number(pid)), 5_000).catch(() => undefined);
     }
   }
   try {
@@ -88,7 +91,7 @@ afterEach(async () => {
   fecharBanco();
   vi.restoreAllMocks();
   await new Promise((r) => setTimeout(r, 200));
-  rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  await limparTmp(tmp);
 });
 
 afterAll(() => {
@@ -98,6 +101,39 @@ afterAll(() => {
     else process.env[nome] = valor;
   }
 });
+
+function processoVivo(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM = existe mas sem permissão para sinalizar; só ESRCH quer dizer que já não existe.
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Apaga a pasta temporária do teste, insistindo por ~5 s. Se o Windows ainda segurar algum arquivo
+ * (EBUSY/EPERM), avisa e segue: sobra lixo em os.tmpdir(), mas um teste que já passou não deve
+ * reprovar por causa da limpeza.
+ */
+async function limparTmp(pasta: string): Promise<void> {
+  const fim = Date.now() + 5_000;
+  for (;;) {
+    try {
+      rmSync(pasta, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      const codigo = (e as NodeJS.ErrnoException).code;
+      if (codigo !== "EBUSY" && codigo !== "EPERM") throw e;
+      if (Date.now() > fim) {
+        console.warn(`Não foi possível apagar ${pasta} (${codigo}); ficou em os.tmpdir().`);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
 
 async function aguardar(condicao: () => boolean | Promise<boolean>, ms = 20_000): Promise<void> {
   const fim = Date.now() + ms;

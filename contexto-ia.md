@@ -32,6 +32,24 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-26 — Excel da Análise com recorte no nome, 404 para recorte vazio, eixo de horas e teste de EBUSY
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [formatacao.ts](app/src/lib/formatacao.ts), [nomeArquivo.ts](app/src/lib/nomeArquivo.ts), [rota de exportar da Análise](app/src/app/api/analise/exportar/route.ts), [analise-view.tsx](app/src/components/analise/analise-view.tsx), [grafico-por-hora.tsx](app/src/components/analise/grafico-por-hora.tsx), [exportacoes/route.test.ts](app/src/app/api/exportacoes/route.test.ts), [changelog.ts](app/src/lib/changelog.ts)
+
+**O quê.** (1) O Excel da Análise leva o recorte (autor e período) no nome do arquivo, no mesmo formato do PDF. (2) `/api/analise/exportar` com recorte de 0 mensagens responde 404 `SEM_MENSAGENS` em vez de um .xlsx só com cabeçalhos. (3) O gráfico por hora mostra as 24 horas (`interval=0`) e gira os rótulos em -90° quando o gráfico tem menos de 640 px. (4) Endurecimento do `afterEach` de `exportacoes/route.test.ts`. (5) Entrada nova no changelog do app.
+
+**Por quê.** Fecha as pendências (2), (3) e (4) do ciclo 3 e a (3) do ciclo 2 das entradas anteriores. O 404: a tela já desabilita o botão com 0 mensagens, mas quem chamava a rota direto recebia um Excel vazio.
+
+**Como.** Helper novo `partesDoRecorte` em `formatacao.ts`, usado também na referência do PDF; `nomeArquivoExportacao` ganhou o 4º parâmetro `recorte`. O autor entra no nome com no máximo 30 caracteres (`LIMITE_AUTOR_NO_NOME`, na rota), porque o slug do recorte tem teto de 80 e um autor de nome comprido cortava o período (achado da `natasha`, reproduzido com teste; a fixture ganhou uma 4ª mensagem de autora com nome longo). Gráfico: rótulos girados via `onResize` do `ResponsiveContainer`. Medido no navegador: a 736 px rótulo de 21 px e vão de 8,3 px; a 311 px (celular de 375) as 24 horas aparecem giradas e legíveis. O limiar 640 é extrapolação (~4 px de folga), não medido exatamente na transição. Teste de EBUSY: `afterEach` espera o processo filho morrer (`processoVivo`) e `limparTmp` tolera EBUSY/EPERM por ~5 s, só avisando. **Preventivo:** a falha não foi reproduzida (13 rodadas normais, 12 sob carga com 4 processos, 5 suítes completas, todas verdes); a causa (filho ainda segurando arquivo) é hipótese.
+Descartado: aviso na tela para o 404 (o botão é `<a download>` sem fetch; a tela já desabilita); truncar o "h" dos rótulos (00h cabe no modo reto); teste unitário do SVG do Recharts (sem valor).
+
+**Verificação.** `tsc` e lint limpos; 34 arquivos / 330 testes, 1 skip antigo por plataforma. Navegador (servidor isolado na porta 51795, senha gerada, banco temporário, 80 mensagens fictícias, já encerrado): 24 rótulos retos a 1700 px e girados a 375 px; `curl` na rota real: nome com recorte e 404 `SEM_MENSAGENS`. `maria-hill` = SEGUE (sem injeção de cabeçalho/caminho, sem rota nova, `proxy.ts`/auth intactos). `natasha`, 4 achados: frase do changelog prometia aviso que o `<a download>` não mostra (reescrita); autor comprido cortava o período (corrigido); Conversas ([mensagens/exportar/route.ts](app/src/app/api/mensagens/exportar/route.ts)) não acompanhou, **não alterado** por estar fora do pedido; comentário do limiar 640 dizia estimativa (agora traz a medição). Repowise reindexado (`repowise update` em `app/`): índice em `4b25be3`; aviso benigno "deleted-file prune refused for git_metadata" (134 caminhos), afeta só metadados de git.
+
+**Impacto.** Visível: nome do Excel da Análise e gráfico por hora. A rota ganhou o código de erro `SEM_MENSAGENS` (só quem chama direto vê o 404).
+
+**Pendências.** (a) Usuário ver o PDF impresso da Análise no diálogo de impressão. (b) Usuário rodar a extração do grupo "Projetos | Tecnologia" logado no Teams e conferir a data da mensagem mais antiga do arquivo (valida o scraper e fecha o gatilho do ciclo 4). (c) Decidir se Conversas (CSV/Excel) também ganha recorte no nome e 404 para 0 mensagens. (d) Monitorar se o EBUSY volta; se voltar, capturar o caminho no erro para achar a causa. (e) Medir a memória do XLSX com grupo grande (herdada). (f) Limiar 640 do gráfico não medido exatamente na largura de transição.
+
 ## 2026-09-26 — Ciclo 4 (fallback via Graph API) adiado; extração passa de 11/02/2025
 
 **Branch:** `main` · **Commits:** `sem commit ainda`

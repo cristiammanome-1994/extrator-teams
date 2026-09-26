@@ -49,6 +49,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     descricao:
       "A tela Análise agora filtra por autor e tem atalhos de período (últimos 7, 30 e 90 dias, contados a partir da última mensagem do grupo, não de hoje), com o número de filtros ativos e um botão Limpar. Ganhou também os gráficos de mensagens por hora do dia e por dia da semana, e os cartões de horário de pico e dia mais movimentado.",
   },
+  {
+    data: "2026-09-26",
+    titulo: "Análise: Excel com o recorte no nome e gráfico por hora completo",
+    categoria: "melhoria",
+    descricao:
+      "O Excel da Análise agora traz o autor e o período no nome do arquivo, como o PDF. O gráfico de mensagens por hora mostra todas as 24 horas, girando os rótulos em tela estreita para não sobrepor. A tela já desabilitava o botão sem mensagens; agora quem acessa o endereço do Excel direto recebe um erro 404 em vez de uma planilha só com cabeçalhos.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

@@ -23,7 +23,18 @@ export function sufixoData(hoje: Date): string {
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 }
 
-/** Nome do arquivo baixado: `<grupo>-<data>.<extensão>`, com `exportacao` se o grupo não render slug. */
-export function nomeArquivoExportacao(base: string, extensao: "csv" | "xlsx", hoje: Date = new Date()): string {
-  return `${slugArquivo(base) || "exportacao"}-${sufixoData(hoje)}.${extensao}`;
+/**
+ * Nome do arquivo baixado: `<grupo>[-<recorte>]-<data>.<extensão>`, com `exportacao` se o grupo não
+ * render slug. O recorte tem o próprio slug, com o mesmo teto de 80 caracteres para o recorte inteiro:
+ * isso protege o filtro de um nome de grupo comprido, mas quem monta o recorte deve encurtar partes
+ * longas (como o autor) para o período não ser cortado.
+ */
+export function nomeArquivoExportacao(
+  base: string,
+  extensao: "csv" | "xlsx",
+  hoje: Date = new Date(),
+  recorte = ""
+): string {
+  const partes = [slugArquivo(base) || "exportacao", slugArquivo(recorte), sufixoData(hoje)].filter(Boolean);
+  return `${partes.join("-")}.${extensao}`;
 }

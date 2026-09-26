@@ -42,6 +42,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     descricao:
       "Em Conversas, baixe todas as mensagens do filtro atual em CSV ou Excel, não só a página aberta. Em Análise, baixe as tabelas por autor e por dia em Excel ou salve a tela em PDF.",
   },
+  {
+    data: "2026-09-26",
+    titulo: "Análise: filtro por autor, atalhos de período e novos gráficos",
+    categoria: "melhoria",
+    descricao:
+      "A tela Análise agora filtra por autor e tem atalhos de período (últimos 7, 30 e 90 dias, contados a partir da última mensagem do grupo, não de hoje), com o número de filtros ativos e um botão Limpar. Ganhou também os gráficos de mensagens por hora do dia e por dia da semana, e os cartões de horário de pico e dia mais movimentado.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { BotaoPdf } from "@/components/shared/botao-pdf";
 import { LinkExportar } from "@/components/shared/link-exportar";
+import { SelectNativo } from "@/components/shared/select-nativo";
 import { SeletorGrupo } from "@/components/shared/seletor-grupo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,19 +13,32 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGrupos } from "@/hooks/useGrupos";
 import { useRecursoRemoto } from "@/hooks/useRecursoRemoto";
 import { selecionarDadosDoGrupo } from "@/lib/dadosDoGrupo";
+import { formatarDia } from "@/lib/formatacao";
 import type { Kpis } from "@/lib/kpis";
+import {
+  ATALHOS_PERIODO,
+  atalhoAtivo,
+  contarFiltrosAnalise,
+  PERIODO_VAZIO,
+  periodoDoAtalho,
+  type IdAtalhoPeriodo,
+} from "@/lib/periodoAnalise";
 import { cn } from "@/lib/utils";
 import { GraficoPorDia } from "./grafico-por-dia";
+import { GraficoPorHora } from "./grafico-por-hora";
+import { GraficoPorSemana } from "./grafico-por-semana";
 import { KpiCardsAnalise } from "./kpi-cards-analise";
 import { RankingAutores } from "./ranking-autores";
 
-const PERIODO_VAZIO = { de: "", ate: "" };
+const FILTROS_VAZIOS = { ...PERIODO_VAZIO, autor: "" };
 
 export function AnaliseView() {
   const { grupos, erro: erroGrupos, carregando: carregandoGrupos } = useGrupos();
   const [grupoEscolhido, setGrupoEscolhido] = useState<number | null>(null);
-  const [rascunho, setRascunho] = useState(PERIODO_VAZIO);
-  const [aplicado, setAplicado] = useState(PERIODO_VAZIO);
+  // O rascunho é o que se digita nas datas; o aplicado é o que vai para a URL. Autor e atalhos
+  // aplicam na hora (não há o que "digitar"), e as datas só ao clicar em "Aplicar período".
+  const [rascunho, setRascunho] = useState(FILTROS_VAZIOS);
+  const [aplicado, setAplicado] = useState(FILTROS_VAZIOS);
 
   const grupoId = grupoEscolhido ?? grupos?.[0]?.id ?? null;
   let url: string | null = null;
@@ -32,11 +46,13 @@ export function AnaliseView() {
     const params = new URLSearchParams({ grupoId: String(grupoId) });
     if (aplicado.de) params.set("de", aplicado.de);
     if (aplicado.ate) params.set("ate", aplicado.ate);
+    if (aplicado.autor) params.set("autor", aplicado.autor);
     url = `/api/analise?${params.toString()}`;
   }
-  const { dados, erro, carregando, recarregar } = useRecursoRemoto<{ kpis: Kpis; grupoId: number }>(url, {
-    manterDadoAnterior: true,
-  });
+  const { dados, erro, carregando, recarregar } = useRecursoRemoto<{ kpis: Kpis; autores: string[]; grupoId: number }>(
+    url,
+    { manterDadoAnterior: true }
+  );
 
   // Logo após trocar de grupo o cache ainda devolve o último dado do endpoint, que é do grupo anterior.
   const dadosDoGrupo = selecionarDadosDoGrupo(dados, grupoId);
@@ -52,12 +68,37 @@ export function AnaliseView() {
     );
   }
 
+  const grupoAtual = grupos.find((g) => g.id === grupoId);
+  // Atalhos contam a partir da última mensagem do grupo, não de hoje (ver periodoAnalise.ts).
+  const ultimaData = grupoAtual?.ultima?.slice(0, 10) ?? null;
+  const filtrosAtivos = contarFiltrosAnalise(aplicado, aplicado.autor);
+  const atalhoDoPeriodo = atalhoAtivo(aplicado, ultimaData);
+
+  function aplicarAtalho(id: IdAtalhoPeriodo) {
+    const periodo = periodoDoAtalho(id, ultimaData);
+    setRascunho((r) => ({ ...r, ...periodo }));
+    setAplicado((a) => ({ ...a, ...periodo }));
+  }
+
+  function escolherAutor(autor: string) {
+    setRascunho((r) => ({ ...r, autor }));
+    setAplicado((a) => ({ ...a, autor }));
+  }
+
+  function limpar() {
+    setRascunho(FILTROS_VAZIOS);
+    setAplicado(FILTROS_VAZIOS);
+  }
+
   // Período sem mensagens: nada a baixar nem a imprimir (a tela irmã, Conversas, também desabilita com total 0).
   const temDados = (dadosDoGrupo?.kpis.total ?? 0) > 0;
-  const grupoAtual = grupos.find((g) => g.id === grupoId);
-  const periodo = [aplicado.de && `de ${aplicado.de}`, aplicado.ate && `até ${aplicado.ate}`].filter(Boolean).join(" ");
-  const referenciaPdf = [grupoAtual?.nome, periodo].filter(Boolean).join(" · ");
-  // Mesmo recorte da tela: grupo e período aplicados.
+  const recorte = [
+    aplicado.autor && `autor: ${aplicado.autor}`,
+    aplicado.de && `de ${formatarDia(aplicado.de)}`,
+    aplicado.ate && `até ${formatarDia(aplicado.ate)}`,
+  ].filter(Boolean);
+  const referenciaPdf = [grupoAtual?.nome, ...recorte].filter(Boolean).join(" · ");
+  // Mesmo recorte da tela: grupo, período e autor aplicados.
   const hrefExportar = url === null ? null : url.replace("/api/analise?", "/api/analise/exportar?");
 
   return (
@@ -66,19 +107,26 @@ export function AnaliseView() {
         data-sem-impressao
         onSubmit={(e) => {
           e.preventDefault();
-          setAplicado(rascunho);
+          setAplicado((a) => ({ ...a, de: rascunho.de, ate: rascunho.ate }));
         }}
-        className="grid gap-2 md:grid-cols-[2fr_1fr_1fr_auto]"
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1.3fr_1fr_1fr_auto]"
       >
         <SeletorGrupo
           grupos={grupos}
           valor={grupoId}
           onChange={(id) => {
             setGrupoEscolhido(id);
-            setRascunho(PERIODO_VAZIO);
-            setAplicado(PERIODO_VAZIO);
+            limpar();
           }}
         />
+        <SelectNativo aria-label="Autor" value={aplicado.autor} onChange={(e) => escolherAutor(e.target.value)}>
+          <option value="">Todos os autores</option>
+          {(dadosDoGrupo?.autores ?? []).map((autor) => (
+            <option key={autor} value={autor}>
+              {autor}
+            </option>
+          ))}
+        </SelectNativo>
         <Input
           type="date"
           aria-label="De"
@@ -96,14 +144,41 @@ export function AnaliseView() {
         <Button type="submit">Aplicar período</Button>
       </form>
 
-      <div className="flex justify-end gap-2">
-        <LinkExportar
-          href={hrefExportar}
-          rotulo="Excel"
-          titulo="Baixar as tabelas por autor e por dia em Excel (.xlsx)"
-          desabilitado={!temDados}
-        />
-        <BotaoPdf titulo="Análise" referencia={referenciaPdf} desabilitado={!temDados} />
+      <div data-sem-impressao className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Atalhos de período">
+          {ATALHOS_PERIODO.map((a) => (
+            <Button
+              key={a.id}
+              type="button"
+              size="sm"
+              variant={atalhoDoPeriodo === a.id ? "default" : "outline"}
+              aria-pressed={atalhoDoPeriodo === a.id}
+              disabled={a.dias !== null && !ultimaData}
+              onClick={() => aplicarAtalho(a.id)}
+            >
+              {a.rotulo}
+            </Button>
+          ))}
+          {filtrosAtivos > 0 && (
+            <>
+              <span className="px-1 text-xs text-muted-foreground" role="status">
+                {filtrosAtivos} {filtrosAtivos === 1 ? "filtro ativo" : "filtros ativos"}
+              </span>
+              <Button type="button" size="sm" variant="ghost" onClick={limpar}>
+                Limpar
+              </Button>
+            </>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <LinkExportar
+            href={hrefExportar}
+            rotulo="Excel"
+            titulo="Baixar em Excel (.xlsx) as tabelas por autor e por dia do recorte atual (grupo, período e autor)"
+            desabilitado={!temDados}
+          />
+          <BotaoPdf titulo="Análise" referencia={referenciaPdf} desabilitado={!temDados} />
+        </div>
       </div>
 
       {erro && <ErrorState message={erro.message} onRetry={() => void recarregar()} />}
@@ -116,6 +191,10 @@ export function AnaliseView() {
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <GraficoPorDia porDia={dadosDoGrupo.kpis.porDia} />
             <RankingAutores porAutor={dadosDoGrupo.kpis.porAutor} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <GraficoPorHora porHora={dadosDoGrupo.kpis.porHora} />
+            <GraficoPorSemana porDiaSemana={dadosDoGrupo.kpis.porDiaSemana} />
           </div>
         </div>
       ) : null}

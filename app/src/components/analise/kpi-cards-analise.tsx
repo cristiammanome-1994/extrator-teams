@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { formatarDia, formatarNumero } from "@/lib/formatacao";
+import { formatarDia, formatarNumero, rotuloIntervaloHora } from "@/lib/formatacao";
 import type { Kpis } from "@/lib/kpis";
 
 export function KpiCardsAnalise({ kpis }: { kpis: Kpis }) {
@@ -19,10 +19,23 @@ export function KpiCardsAnalise({ kpis }: { kpis: Kpis }) {
       detalhe: kpis.dias > 0 ? `${formatarNumero(kpis.dias)} dias` : undefined,
     },
     { rotulo: "Média por dia", valor: kpis.mediaPorDia.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) },
+    {
+      rotulo: "Horário de pico",
+      valor: kpis.horaPico === null ? "—" : rotuloIntervaloHora(kpis.horaPico),
+      detalhe:
+        kpis.horaPico === null
+          ? undefined
+          : `${formatarNumero(kpis.porHora[kpis.horaPico].total)} mensagens nessa hora, somando os dias do filtro`,
+    },
+    {
+      rotulo: "Dia mais movimentado",
+      valor: kpis.diaMaisMovimentado ? formatarDia(kpis.diaMaisMovimentado.dia) : "—",
+      detalhe: kpis.diaMaisMovimentado ? `${formatarNumero(kpis.diaMaisMovimentado.total)} mensagens` : undefined,
+    },
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {itens.map((item) => (
         <Card key={item.rotulo}>
           <CardContent className="space-y-1 pt-4">

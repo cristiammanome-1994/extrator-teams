@@ -66,7 +66,7 @@ describe("GET /api/analise", () => {
     expect(resposta.status).toBe(200);
     const json = await resposta.json();
     expect(json.grupoId).toBe(1);
-    expect(Object.keys(json).sort()).toEqual(["grupoId", "kpis"]);
+    expect(Object.keys(json).sort()).toEqual(["autores", "grupoId", "kpis"]);
     expect(json.kpis.total).toBe(2);
     expect(json.kpis.autores).toBe(2);
   });
@@ -76,6 +76,21 @@ describe("GET /api/analise", () => {
     expect(json.grupoId).toBe(2);
     expect(json.kpis.total).toBe(3);
     expect(json.kpis.autores).toBe(1);
+  });
+
+  it("filtra por autor, mas a lista de autores continua sendo a do grupo inteiro", async () => {
+    const json = await (await pedir("?grupoId=1&autor=Ana%20Teste")).json();
+    expect(json.kpis.total).toBe(1);
+    expect(json.kpis.autores).toBe(1);
+    expect(json.autores).toEqual(["Ana Teste", "Bruno Teste"]);
+  });
+
+  it("devolve as séries por hora (24) e por dia da semana (7)", async () => {
+    const { kpis } = await (await pedir("?grupoId=1")).json();
+    expect(kpis.porHora).toHaveLength(24);
+    expect(kpis.porDiaSemana).toHaveLength(7);
+    expect(kpis.horaPico).toBe(10);
+    expect(kpis.diaMaisMovimentado).toEqual({ dia: "2026-09-07", total: 1 });
   });
 
   it("recusa grupoId ausente ou inválido com 400 PARAMETRO_INVALIDO", async () => {

@@ -27,3 +27,13 @@ export function formatarDuracao(inicioIso: string, fimIso: string | null): strin
   const minutos = Math.floor(segundos / 60);
   return minutos > 0 ? `${minutos} min ${segundos % 60} s` : `${segundos} s`;
 }
+
+/** Hora cheia como `09h`. */
+export function rotuloHora(hora: number): string {
+  return `${String(hora).padStart(2, "0")}h`;
+}
+
+/** Faixa de uma hora cheia, como `09h – 10h` (a de 23h termina em `00h`). */
+export function rotuloIntervaloHora(hora: number): string {
+  return `${rotuloHora(hora)} – ${rotuloHora((hora + 1) % 24)}`;
+}

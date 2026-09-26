@@ -10,7 +10,10 @@ import { lerFiltros } from "@/lib/parametros";
 
 export const dynamic = "force-dynamic";
 
-/** Excel com as duas tabelas da tela Análise (por autor e por dia), no mesmo período. */
+/**
+ * Excel com as duas tabelas da tela Análise (por autor e por dia), no mesmo recorte: grupo, período
+ * e autor. Com um autor escolhido, a aba "Por autor" tem uma linha só.
+ */
 export async function GET(request: NextRequest) {
   const lido = lerFiltros(request.nextUrl.searchParams);
   if ("erro" in lido) return erroApi("PARAMETRO_INVALIDO", lido.erro, 400);

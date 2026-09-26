@@ -165,20 +165,31 @@
  * Recharts grava a largura medida no SVG e não remede quando o navegador troca
  * para a mídia de impressão; mudar a largura de verdade faz o ResizeObserver
  * redesenhar o gráfico. ~700px é a área útil de um A4 retrato com as margens
- * de @page (186mm a 96dpi).
+ * de @page (186mm a 96dpi). Como ele mede na mídia de TELA, o layout do preparo
+ * tem de ser o da folha: a regra logo abaixo também força a mesma grade e o
+ * mesmo padding que a impressão usa (guardado por src/app/globals.print.test.ts).
  */
 :root[data-preparando-impressao] main {
   width: 700px !important;
   max-width: 700px !important;
+  padding: 0 !important; /* o @media print também zera; largura do gráfico medida = largura impressa */
+}
+
+/*
+ * Na tela (viewport largo) as grades de gráficos usam `lg:` e ficam em 2 colunas; na folha (~703px)
+ * caem em 1. O Recharts mede AGORA, na mídia de tela, e não remede na impressão: sem forçar 1 coluna
+ * aqui ele desenharia o gráfico estreito (~286px) num cartão de 700px. A grade leva `data-grade-graficos`.
+ */
+:root[data-preparando-impressao] [data-grade-graficos] {
+  grid-template-columns: minmax(0, 1fr) !important; /* `1fr` puro deixaria um nome longo esticar a coluna além de 700px */
 }
 
 @media print {
-  /* Rede de segurança: nenhum desenho passa da folha. */
-  svg,
-  .recharts-wrapper,
-  .recharts-surface {
-    max-width: 100% !important;
-  }
+  /* Não limitar `svg`/`.recharts-*` com max-width: `100% !important` colapsava o wrapper do gráfico
+     a 0 px na impressão e os gráficos saíam em branco no PDF (guardado por src/app/globals.print.test.ts).
+     No fluxo do BotaoPdf, a largura de 700px de :root[data-preparando-impressao] mantém o desenho na
+     folha. Com Ctrl+P direto esse atributo não existe e nada limita o desenho: é uma troca consciente,
+     porque um gráfico um pouco largo é melhor que um gráfico em branco. */
 
   /* Volta ao esquema claro seja qual for o tema em uso. */
   :root,

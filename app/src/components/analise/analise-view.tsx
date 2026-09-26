@@ -183,11 +183,11 @@ export function AnaliseView() {
       ) : dadosDoGrupo ? (
         <div aria-busy={carregando} className={cn("space-y-4", carregando && "opacity-60 transition-opacity")}>
           <KpiCardsAnalise kpis={dadosDoGrupo.kpis} />
-          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <div data-grade-graficos className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <GraficoPorDia porDia={dadosDoGrupo.kpis.porDia} />
             <RankingAutores porAutor={dadosDoGrupo.kpis.porAutor} />
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div data-grade-graficos className="grid gap-4 lg:grid-cols-2">
             <GraficoPorHora porHora={dadosDoGrupo.kpis.porHora} />
             <GraficoPorSemana porDiaSemana={dadosDoGrupo.kpis.porDiaSemana} />
           </div>

@@ -56,6 +56,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     descricao:
       "O Excel da Análise agora traz o autor e o período no nome do arquivo, como o PDF. O gráfico de mensagens por hora mostra todas as 24 horas, girando os rótulos em tela estreita para não sobrepor. A tela já desabilitava o botão sem mensagens; agora quem acessa o endereço do Excel direto recebe um erro 404 em vez de uma planilha só com cabeçalhos.",
   },
+  {
+    data: "2026-09-26",
+    titulo: "PDF da Análise: gráficos deixam de sair em branco",
+    categoria: "correcao",
+    descricao:
+      "Ao salvar a Análise em PDF, os gráficos (por dia, por hora e por dia da semana) saíam vazios; só os cartões e a lista de autores apareciam. Agora os gráficos saem completos.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

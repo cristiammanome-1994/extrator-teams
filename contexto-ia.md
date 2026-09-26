@@ -32,9 +32,50 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-26 — PDF da Análise saía com os gráficos em branco (e, depois, estreitos e cortados)
+
+**Branch:** `main` · **Commits:** `sem commit ainda` (base publicada: `43ebf2e`)
+**Arquivos:** [globals.css](app/src/app/globals.css), [globals.print.test.ts](app/src/app/globals.print.test.ts), [changelog.ts](app/src/lib/changelog.ts), [analise-view.tsx](app/src/components/analise/analise-view.tsx), [botao-pdf.tsx](app/src/components/shared/botao-pdf.tsx)
+
+**O quê.** Na pré-visualização de impressão da Análise, os 3 gráficos Recharts (por dia, por hora, por dia da semana) saíam vazios. Cartões e lista de Autores (HTML puro), cabeçalho e nome do arquivo (`Analise-<grupo>-<data>`) saíam corretos. Agora os gráficos aparecem.
+
+**Por quê.** A regra "rede de segurança" criada no ciclo 2 em `@media print` (`svg, .recharts-wrapper, .recharts-surface { max-width: 100% !important }`) colapsava o `.recharts-wrapper` a 0 px na impressão (o SVG seguia com 666 px). No ciclo 2 o diálogo de impressão não foi exercitado; quem revelou foi o print do usuário.
+
+**Como.** Removida a regra `max-width`, com comentário no lugar. Teste novo `globals.print.test.ts`: lê o CSS sem comentários, acha o bloco `@media print` real (início de linha + contagem de chaves) e falha se `svg`/`.recharts-*` tiverem `max-width` ou `max-inline-size`. Provado por mutação: falha com a regra antiga e com `max-inline-size` reinserida; passa no CSS atual. Entrada de correção no changelog do app.
+Reprodução/prova: Playwright/Chromium com `emulateMedia print` na largura A4 (794 px), repetindo a sequência do `BotaoPdf` (atributos no body, `data-preparando-impressao` no html, resize, 2 rAF): wrapper 0 px antes, 666 px depois; screenshot com os 4 gráficos completos (24 horas do gráfico por hora). Instância isolada (porta 51795, senha gerada, banco temporário, 80 mensagens fictícias, já encerrada). Não havia rasterizador de PDF (`pdftoppm`) na máquina: o PDF de `page.pdf()` não foi visto como imagem, só a mídia de impressão emulada.
+Troca consciente: com Ctrl+P direto (sem o `BotaoPdf`) o atributo `data-preparando-impressao` não existe e nada limita o desenho ao A4. Aceito: gráfico um pouco largo é melhor que em branco. O comentário no CSS registra isso.
+Descartado: teste de layout em Chromium na suíte (pesado; teste de texto + prova manual bastam por ora).
+Aprendido: o servidor do usuário na porta 51794 era um `next start` com build de 22/09 (a tela mostrava a versão antiga); o build foi refeito e reiniciado por ele.
+
+**Verificação.** `tsc` e lint limpos; 35 arquivos / 332 testes, 1 skip antigo por plataforma. `natasha`, 5 achados, todos tratados: teste ancorava no `@media print` de um comentário; regex deixava passar `max-inline-size` e era frágil com comentário; comentário prometia que o `BotaoPdf` sempre limita (agora "no fluxo do BotaoPdf" + a troca acima); sem resíduo de "rede de segurança" em `src/`; comentário cita o teste com caminho completo. `maria-hill` não necessária (só CSS, teste e changelog; sem rota/auth/download/spawn).
+
+**Impacto.** Visível: PDF da Análise. Risco conhecido: o Ctrl+P direto não limita a largura (ver troca acima).
+
+**Pendências.** (a) Usuário conferir de novo a pré-visualização de impressão após `npm run build` e reiniciar o servidor (o build atual em `.next` ainda não tem a correção; ver também o segundo defeito abaixo). (b) O gráfico por hora no PDF usa os 700 px do `BotaoPdf` (2 colunas): legibilidade dos rótulos girados nesse tamanho não avaliada.
+
+### Segundo defeito (descoberto depois que o usuário imprimiu de novo, após o rebuild)
+
+**Sintoma.** Os gráficos passaram a aparecer, mas estreitos (o por hora ocupava cerca de 1/3 do cartão) e cortados na borda direita (barra das 23h, "Dom").
+
+**Causa.** O `BotaoPdf` estreita a página (`data-preparando-impressao`, `main` de 700 px), mas o Recharts mede ainda na mídia de tela. Lá, as duas grades de gráficos de `analise-view.tsx` usam `lg:` (viewport largo) e ficam em 2 colunas: gráficos medidos em 392/286/286 px. Na impressão o viewport é de ~703 px, a grade cai para 1 coluna e os cartões viram 700 px, mas o Recharts não remede na impressão real.
+
+**Correção.** `data-grade-graficos` nas duas grades. Em `globals.css`, fora do `@media`: `:root[data-preparando-impressao] [data-grade-graficos] { grid-template-columns: minmax(0, 1fr) !important }` e `padding: 0 !important` no `main` do preparo (igual ao `@media print`), para o layout medido ser o da folha. `minmax(0, 1fr)` e não `1fr` (natasha: nome longo esticaria a coluna). Comentários de `globals.css` e `botao-pdf.tsx` agora citam essa dependência (diziam que estreitar a página bastava). A grade dos KPIs não precisa do atributo (sem Recharts).
+
+**Lição sobre a prova.** A prova anterior (Chromium com mídia de impressão emulada) foi generosa demais: o Recharts teve tempo de remedir. A reprodução fiel exige desconectar os `ResizeObserver` depois do preparo (script Playwright que os registra via `addInitScript` e os desconecta após o preparo). Assim: gráficos de 668 px em cartões de 700 px (antes 392/286/286); screenshot com os 4 gráficos completos e as 24 horas.
+
+**Testes.** `globals.print.test.ts` ampliado (6 testes): a regra do preparo existe FORA do `@media print` com `minmax(0, 1fr)`; `padding: 0` no `main` do preparo; `data-grade-graficos` em 2 elementos `<div>` JSX. Limitação: verificação por texto; nada obriga uma futura terceira grade com gráfico a levar o atributo (natasha, achado 2; aceito, o comentário do botão avisa). Aprendido: um one-liner de shell corrompeu o arquivo de teste numa etapa; foi reescrito inteiro.
+
+**natasha (2ª rodada).** 3 achados tratados: comentários desatualizados; teste que não distinguia dentro/fora do `@media` e contava o atributo em qualquer texto; `1fr` puro. Sem `maria-hill` (só CSS, teste, comentário e marcação).
+
+**Verificação.** `tsc` e lint limpos; 35 arquivos / 336 testes, 1 skip antigo. O build atual em `.next` NÃO tem esta correção.
+
+**Impacto (segundo defeito).** Visível (PDF da Análise). Ctrl+P direto (sem o botão) continua sem o preparo, então o gráfico pode ficar estreito ou largo; troca consciente já registrada.
+
+**Pendências (segundo defeito).** Usuário: `npm run build`, reiniciar o servidor e conferir a pré-visualização de impressão; avaliar a legibilidade dos rótulos do gráfico por hora nos 668 px do PDF (na prova do Chromium as 24 horas saem retas e legíveis). Também merece entrada no changelog do app, se ainda não houver uma para este defeito.
+
 ## 2026-09-26 — Excel da Análise com recorte no nome, 404 para recorte vazio, eixo de horas e teste de EBUSY
 
-**Branch:** `main` · **Commits:** `sem commit ainda`
+**Branch:** `main` · **Commits:** `43ebf2e` (publicado em origin/main)
 **Arquivos:** [formatacao.ts](app/src/lib/formatacao.ts), [nomeArquivo.ts](app/src/lib/nomeArquivo.ts), [rota de exportar da Análise](app/src/app/api/analise/exportar/route.ts), [analise-view.tsx](app/src/components/analise/analise-view.tsx), [grafico-por-hora.tsx](app/src/components/analise/grafico-por-hora.tsx), [exportacoes/route.test.ts](app/src/app/api/exportacoes/route.test.ts), [changelog.ts](app/src/lib/changelog.ts)
 
 **O quê.** (1) O Excel da Análise leva o recorte (autor e período) no nome do arquivo, no mesmo formato do PDF. (2) `/api/analise/exportar` com recorte de 0 mensagens responde 404 `SEM_MENSAGENS` em vez de um .xlsx só com cabeçalhos. (3) O gráfico por hora mostra as 24 horas (`interval=0`) e gira os rótulos em -90° quando o gráfico tem menos de 640 px. (4) Endurecimento do `afterEach` de `exportacoes/route.test.ts`. (5) Entrada nova no changelog do app.
@@ -48,7 +89,7 @@ Descartado: aviso na tela para o 404 (o botão é `<a download>` sem fetch; a te
 
 **Impacto.** Visível: nome do Excel da Análise e gráfico por hora. A rota ganhou o código de erro `SEM_MENSAGENS` (só quem chama direto vê o 404).
 
-**Pendências.** (a) Usuário ver o PDF impresso da Análise no diálogo de impressão. (b) Usuário rodar a extração do grupo "Projetos | Tecnologia" logado no Teams e conferir a data da mensagem mais antiga do arquivo (valida o scraper e fecha o gatilho do ciclo 4). (c) Decidir se Conversas (CSV/Excel) também ganha recorte no nome e 404 para 0 mensagens. (d) Monitorar se o EBUSY volta; se voltar, capturar o caminho no erro para achar a causa. (e) Medir a memória do XLSX com grupo grande (herdada). (f) Limiar 640 do gráfico não medido exatamente na largura de transição.
+**Pendências.** (a) AINDA NÃO RESOLVIDA: o PDF impresso saía com gráficos em branco e depois estreitos/cortados; ver a entrada "PDF da Análise saía com os gráficos em branco". Só fecha depois que o usuário conferir a pré-visualização de impressão com o build novo. (b) RESOLVIDA (informado pelo usuário, não por execução da IA): a extração do grupo "Projetos | Tecnologia" passa de 11/02/2025; valida o scraper e fecha o gatilho do ciclo 4. (c) Decidir se Conversas (CSV/Excel) também ganha recorte no nome e 404 para 0 mensagens. (d) Monitorar se o EBUSY volta; se voltar, capturar o caminho no erro para achar a causa. (e) Medir a memória do XLSX com grupo grande (herdada). (f) Limiar 640 do gráfico não medido exatamente na largura de transição.
 
 ## 2026-09-26 — Ciclo 4 (fallback via Graph API) adiado; extração passa de 11/02/2025
 

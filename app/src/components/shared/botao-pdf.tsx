@@ -35,7 +35,10 @@ export function BotaoPdf({
     corpo.dataset.dataImpressao = new Date().toLocaleString("pt-BR");
 
     // O Recharts grava a largura medida no SVG e não remede ao trocar para a mídia de impressão:
-    // estreitar a página antes faz o ResizeObserver redesenhar o gráfico no tamanho da folha.
+    // estreitar a página antes faz o ResizeObserver redesenhar o gráfico. Mas ele mede na mídia de
+    // TELA, então o layout do preparo tem de ser o da folha: o CSS de `data-preparando-impressao`
+    // (globals.css) também força 1 coluna nas `[data-grade-graficos]` e zera o padding do main.
+    // Grade nova com gráfico, ou breakpoint novo (`lg:` etc.), precisa entrar nessa regra.
     document.documentElement.dataset.preparandoImpressao = "";
     window.dispatchEvent(new Event("resize"));
 

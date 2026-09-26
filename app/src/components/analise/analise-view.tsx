@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
+import { BotaoPdf } from "@/components/shared/botao-pdf";
+import { LinkExportar } from "@/components/shared/link-exportar";
 import { SeletorGrupo } from "@/components/shared/seletor-grupo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +52,18 @@ export function AnaliseView() {
     );
   }
 
+  // Período sem mensagens: nada a baixar nem a imprimir (a tela irmã, Conversas, também desabilita com total 0).
+  const temDados = (dadosDoGrupo?.kpis.total ?? 0) > 0;
+  const grupoAtual = grupos.find((g) => g.id === grupoId);
+  const periodo = [aplicado.de && `de ${aplicado.de}`, aplicado.ate && `até ${aplicado.ate}`].filter(Boolean).join(" ");
+  const referenciaPdf = [grupoAtual?.nome, periodo].filter(Boolean).join(" · ");
+  // Mesmo recorte da tela: grupo e período aplicados.
+  const hrefExportar = url === null ? null : url.replace("/api/analise?", "/api/analise/exportar?");
+
   return (
     <div className="space-y-4">
       <form
+        data-sem-impressao
         onSubmit={(e) => {
           e.preventDefault();
           setAplicado(rascunho);
@@ -84,6 +95,16 @@ export function AnaliseView() {
         />
         <Button type="submit">Aplicar período</Button>
       </form>
+
+      <div className="flex justify-end gap-2">
+        <LinkExportar
+          href={hrefExportar}
+          rotulo="Excel"
+          titulo="Baixar as tabelas por autor e por dia em Excel (.xlsx)"
+          desabilitado={!temDados}
+        />
+        <BotaoPdf titulo="Análise" referencia={referenciaPdf} desabilitado={!temDados} />
+      </div>
 
       {erro && <ErrorState message={erro.message} onRetry={() => void recarregar()} />}
 

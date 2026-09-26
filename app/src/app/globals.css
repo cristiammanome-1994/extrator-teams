@@ -156,3 +156,117 @@
     @apply font-sans;
   }
 }
+
+/*
+ * Impressão / "Salvar em PDF" (BotaoPdf).
+ *
+ * Fora do @media print de propósito: o BotaoPdf marca <html> com
+ * data-preparando-impressao ANTES de imprimir para estreitar a página. O
+ * Recharts grava a largura medida no SVG e não remede quando o navegador troca
+ * para a mídia de impressão; mudar a largura de verdade faz o ResizeObserver
+ * redesenhar o gráfico. ~700px é a área útil de um A4 retrato com as margens
+ * de @page (186mm a 96dpi).
+ */
+:root[data-preparando-impressao] main {
+  width: 700px !important;
+  max-width: 700px !important;
+}
+
+@media print {
+  /* Rede de segurança: nenhum desenho passa da folha. */
+  svg,
+  .recharts-wrapper,
+  .recharts-surface {
+    max-width: 100% !important;
+  }
+
+  /* Volta ao esquema claro seja qual for o tema em uso. */
+  :root,
+  :root.dark {
+    --background: #ffffff;
+    --foreground: #111111;
+    --card: #ffffff;
+    --card-foreground: #111111;
+    --popover: #ffffff;
+    --popover-foreground: #111111;
+    --muted: #f4f4f5;
+    --muted-foreground: #4b5563;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #111111;
+    --accent: #f4f4f5;
+    --accent-foreground: #111111;
+    --border: #d4d4d8;
+    --input: #d4d4d8;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    /* Sem isso o navegador descarta a cor de fundo das barras dos gráficos. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Cabeçalho da folha: título, recorte e quando foi gerado. Os atributos ficam
+     no <body> porque attr() só lê do elemento dono do pseudo-elemento. */
+  body[data-titulo-impressao]::before {
+    content: attr(data-titulo-impressao) " · " attr(data-data-impressao);
+    display: block;
+    margin-bottom: 10mm;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid #d4d4d8;
+    font-size: 10pt;
+    font-weight: 600;
+    color: #111;
+  }
+
+  /* Fora do papel: a navegação (única com <header>/<nav> hoje) e tudo que levar
+     data-sem-impressao — botões de exportar/PDF e o formulário de período. Nem
+     <form> nem <header> genéricos: um título de seção ou filtro futuro dentro do
+     <main> sumiria do PDF sem aviso. */
+  header,
+  nav,
+  [data-sem-impressao] {
+    display: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Abrir o que rola, senão o conteúdo sai cortado na altura da janela. */
+  [class*="overflow-auto"],
+  [class*="overflow-y-auto"],
+  [class*="overflow-x-auto"],
+  [class*="max-h-"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  li {
+    break-inside: avoid;
+  }
+
+  [data-slot="card"] {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid var(--border) !important;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+}

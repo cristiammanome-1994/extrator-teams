@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
+import { LinkExportar } from "@/components/shared/link-exportar";
 import { SelectNativo } from "@/components/shared/select-nativo";
 import { SeletorGrupo } from "@/components/shared/seletor-grupo";
 import { Button } from "@/components/ui/button";
@@ -30,8 +31,9 @@ interface RespostaMensagens {
 
 const FILTROS_VAZIOS = { autor: "", de: "", ate: "", q: "" };
 
-function montarQuery(grupoId: number, filtros: typeof FILTROS_VAZIOS, pagina: number): string {
-  const params = new URLSearchParams({ grupoId: String(grupoId), pagina: String(pagina) });
+function montarQuery(grupoId: number, filtros: typeof FILTROS_VAZIOS, pagina?: number): string {
+  const params = new URLSearchParams({ grupoId: String(grupoId) });
+  if (pagina !== undefined) params.set("pagina", String(pagina));
   if (filtros.autor) params.set("autor", filtros.autor);
   if (filtros.de) params.set("de", filtros.de);
   if (filtros.ate) params.set("ate", filtros.ate);
@@ -86,6 +88,10 @@ export function ConversasView() {
       />
     );
   }
+
+  // Exporta com os filtros JÁ aplicados (o que a tabela mostra), não com o rascunho digitado.
+  const hrefExportar = (formato: "csv" | "xlsx") =>
+    grupoId === null ? null : `/api/mensagens/exportar?${montarQuery(grupoId, aplicado)}&formato=${formato}`;
 
   const totalPaginas = dadosDoGrupo ? Math.max(1, Math.ceil(dadosDoGrupo.total / dadosDoGrupo.porPagina)) : 1;
 
@@ -156,7 +162,19 @@ export function ConversasView() {
           <span>
             {formatarNumero(dadosDoGrupo.total)} {dadosDoGrupo.total === 1 ? "mensagem" : "mensagens"}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <LinkExportar
+              href={hrefExportar("csv")}
+              rotulo="CSV"
+              titulo="Baixar todas as mensagens com estes filtros em CSV (Excel pt-BR)"
+              desabilitado={dadosDoGrupo.total === 0}
+            />
+            <LinkExportar
+              href={hrefExportar("xlsx")}
+              rotulo="Excel"
+              titulo="Baixar todas as mensagens com estes filtros em Excel (.xlsx)"
+              desabilitado={dadosDoGrupo.total === 0}
+            />
             <Button size="sm" variant="outline" onClick={() => setPagina(pagina - 1)} disabled={pagina <= 1}>
               <ChevronLeft className="size-4" />
               Anterior

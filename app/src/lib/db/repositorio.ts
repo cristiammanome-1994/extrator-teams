@@ -258,6 +258,20 @@ function montarWhere(f: FiltrosMensagens): { where: string; params: Parametro[] 
   return { where: cond.join(" AND "), params };
 }
 
+const SELECT_MENSAGENS = "SELECT id, grupo_id, autor, data_hora, data_hora_original, texto FROM mensagens";
+const ORDEM_MENSAGENS = "ORDER BY data_hora IS NULL, data_hora, id";
+
+function paraMensagem(l: Record<string, unknown>): Mensagem {
+  return {
+    id: Number(l.id),
+    grupoId: Number(l.grupo_id),
+    autor: String(l.autor),
+    dataHora: (l.data_hora as string | null) ?? null,
+    dataHoraOriginal: String(l.data_hora_original),
+    texto: String(l.texto),
+  };
+}
+
 export function consultarMensagens(
   db: DatabaseSync,
   filtros: FiltrosMensagens,
@@ -268,22 +282,22 @@ export function consultarMensagens(
   const total = Number(uma(db, `SELECT COUNT(*) AS n FROM mensagens WHERE ${where}`, ...params)!.n);
   const itens = todas(
     db,
-    `SELECT id, grupo_id, autor, data_hora, data_hora_original, texto
-       FROM mensagens WHERE ${where}
-      ORDER BY data_hora IS NULL, data_hora, id
-      LIMIT ? OFFSET ?`,
+    `${SELECT_MENSAGENS} WHERE ${where} ${ORDEM_MENSAGENS} LIMIT ? OFFSET ?`,
     ...params,
     porPagina,
     (pagina - 1) * porPagina
-  ).map((l) => ({
-    id: Number(l.id),
-    grupoId: Number(l.grupo_id),
-    autor: String(l.autor),
-    dataHora: (l.data_hora as string | null) ?? null,
-    dataHoraOriginal: String(l.data_hora_original),
-    texto: String(l.texto),
-  }));
+  ).map(paraMensagem);
   return { itens, total };
+}
+
+/** Todas as mensagens do filtro, na ordem da tela, para exportação. Sem paginação. */
+export function todasMensagens(db: DatabaseSync, filtros: FiltrosMensagens): Mensagem[] {
+  const { where, params } = montarWhere(filtros);
+  return todas(
+    db,
+    `${SELECT_MENSAGENS} WHERE ${where} ${ORDEM_MENSAGENS}`,
+    ...params
+  ).map(paraMensagem);
 }
 
 export function dadosParaKpis(db: DatabaseSync, filtros: FiltrosMensagens): LinhaKpi[] {

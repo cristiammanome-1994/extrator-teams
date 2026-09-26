@@ -35,6 +35,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     categoria: "novidade",
     descricao: "Agora dá para apagar uma exportação do histórico, junto com as mensagens que ela trouxe.",
   },
+  {
+    data: "2026-09-26",
+    titulo: "Exportar para CSV, Excel e PDF",
+    categoria: "novidade",
+    descricao:
+      "Em Conversas, baixe todas as mensagens do filtro atual em CSV ou Excel, não só a página aberta. Em Análise, baixe as tabelas por autor e por dia em Excel ou salve a tela em PDF.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

@@ -32,6 +32,62 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-27 — Documentação do GitHub atualizada e README.md criado na raiz
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [app/README.md](app/README.md), [README.md](README.md)
+
+**O quê.** Usuário perguntou se a documentação do GitHub estava atualizada.
+Comparados [app/README.md](app/README.md) e [LEIA-ME_teams_export.md](LEIA-ME_teams_export.md)
+contra o código atual. O segundo (script Python) estava em dia, sem mudança.
+O primeiro estava desatualizado em 3 pontos, corrigidos: (1) a descrição de
+Conversas não citava a exportação CSV/Excel (ciclo 2); (2) a descrição de
+Análise ainda dizia "total de mensagens, autores, média por dia, gráfico por
+dia e ranking de autores", sem os recursos do ciclo 3 (filtro por autor,
+atalhos de período, gráficos por hora e por dia da semana, cartões de horário
+de pico e dia mais movimentado, exportação Excel/PDF); (3) "Notas de
+segurança" não citava o rate limit do login (10 tentativas/5min, atraso
+400ms), a decisão deliberada sobre `Origin` ausente (remete a este diário),
+nem os cabeçalhos anti-clickjacking (X-Frame-Options/CSP) da entrada anterior
+desta mesma sessão — a descrição de `verificar:api` também passou a citar
+esse check.
+
+Criado também [README.md](README.md) na raiz do projeto (não existia): só
+havia `LEIA-ME_teams_export.md`, e o GitHub só renderiza automaticamente na
+página do repositório um arquivo chamado exatamente "README" (qualquer
+extensão) — "LEIA-ME_..." não é reconhecido, logo a página inicial do repo
+provavelmente aparecia vazia. O novo arquivo é curto: aponta para
+`LEIA-ME_teams_export.md` (linha de comando) e `app/README.md` (painel web),
+com um início rápido do painel.
+
+**Por quê.** Pergunta direta do usuário sobre documentação; o problema
+estrutural da raiz sem README.md reconhecível pelo GitHub apareceu ao
+investigar.
+
+**Como.** Revisão (`natasha`) comparou o diff de documentação contra o código
+(`limiteTentativas.ts`, `proxy.ts`, `next.config.ts`, `verificar-api.mjs`,
+`analise-view.tsx`, `kpi-cards-analise.tsx`, `periodoAnalise.ts`,
+`grafico-por-hora.tsx`, `grafico-por-semana.tsx`, `analise/exportar/route.ts`,
+`nomeArquivo.ts`, `conversas-view.tsx`): nenhuma contradição texto↔código,
+nenhum link quebrado entre os 3 `.md`, nenhum recurso recente faltando. Um
+achado de prosa corrigido: o texto descrevia "gráficos por dia, por autor,
+por hora do dia e por dia da semana" como se fossem 4 gráficos da mesma
+família, mas "por autor" é o ranking de autores — uma lista, sem recharts,
+não um gráfico de barra como os outros três; separado na frase final.
+`maria-hill` não foi chamada (documentação, sem rota/auth/download/spawn/proxy
+tocado). Descartado: mexer em `docs/superpowers/plans/` e
+`docs/superpowers/specs/` (retrato histórico do design de 2026-09-21, não
+documentação viva); fazer o README da raiz mais longo (o conteúdo já vive em
+`app/README.md` e `LEIA-ME_teams_export.md`, o da raiz é só ponte).
+
+**Impacto.** Visível para quem lê o repositório; a partir de agora a página
+inicial no GitHub deve renderizar o novo `README.md`.
+
+**Pendências.** Nenhuma nova. As pendências das entradas anteriores desta
+sessão continuam valendo (confirmação do PDF impresso pelo usuário; decisão
+sobre recorte/404 em Conversas; itens 🟠 da auditoria de segurança, aceitos e
+adiados).
+
 ## 2026-09-27 — Auditoria de segurança completa (checklist de 18 itens) e correção de clickjacking
 
 **Branch:** `main` · **Commits:** `sem commit ainda`

@@ -9,9 +9,12 @@ acompanha o progresso e guarda as mensagens num banco SQLite.
   Também importa `.txt` antigos e exclui itens do histórico (junto com as
   mensagens que aquela execução trouxe).
 - **Conversas:** leia as mensagens de um grupo, filtre por autor e período,
-  busque no texto.
-- **Análise:** total de mensagens, autores, média por dia, gráfico por dia e
-  ranking de autores.
+  busque no texto, exporte o filtro atual em CSV ou Excel.
+- **Análise:** total de mensagens, autores, média por dia, filtro por autor,
+  atalhos de período (últimos 7/30/90 dias), gráficos por dia, por hora do dia
+  e por dia da semana, ranking de autores, cartões de horário de pico e dia
+  mais movimentado, exportação em Excel (com o recorte no nome do arquivo) e
+  em PDF.
 - **Sobre:** para que serve o app, como usar cada tela, e o changelog
   (`src/lib/changelog.ts` — acrescente uma entrada ali a cada mudança visível).
 
@@ -60,7 +63,8 @@ falso que imita a saída do Python, sem abrir o Teams. O teste real com o Teams
 temporários, e confere por HTTP real: autenticação de todas as rotas, origem,
 limites reais de upload, travessia de caminho no download (inclusive
 junction), importação idempotente, concorrência, cancelamento, timeout, morte
-de processos órfãos e reconciliação após queda do servidor. Nunca toca em
+de processos órfãos, reconciliação após queda do servidor e os cabeçalhos
+anti-clickjacking (veja "Notas de segurança"). Nunca toca em
 `exports/` nem em `app/data/`. Código de saída: **0** só se tudo passou; **1**
 se algum check falhou; **2** se algum check não pôde ser provado (por exemplo,
 uma consulta de processos do Windows falhou) e foi reportado como SKIP — nesse
@@ -69,10 +73,17 @@ caso a execução não conta como aprovada.
 ### Notas de segurança
 
 - Toda rota de API exige sessão (cookie assinado), exceto o login.
+- Login com senha errada: 10 tentativas por janela de 5 minutos, com atraso
+  fixo de 400ms por tentativa.
 - Requisições que alteram estado (POST/PUT/PATCH/DELETE) exigem que o cabeçalho
   `Origin`, quando presente, bata com o `Host` da requisição — senão o
   servidor devolve 403 `ORIGEM_INVALIDA`. Chamar a API de outra origem/porta
-  que não seja o próprio navegador do app recebe esse 403.
+  que não seja o próprio navegador do app recebe esse 403. `Origin` ausente
+  (curl, servidor a servidor) passa — a sessão continua sendo exigida; é
+  decisão deliberada, não descuido (ver `contexto-ia.md`).
+- Todas as respostas levam `X-Frame-Options: DENY` e
+  `Content-Security-Policy: frame-ancestors 'none'`: o app não pode ser
+  embutido num `<iframe>` de outro site.
 
 ## Limitações conhecidas
 

@@ -909,6 +909,31 @@ const CHECKS_FASE_A = [
     },
   ],
   [
+    "SEG-1",
+    "cabecalho anti-clickjacking (X-Frame-Options, CSP frame-ancestors): pagina publica, redirect de pagina protegida e rota de API autenticada",
+    async (t) => {
+      const obs = [];
+      const conferir = (r, rotulo) => {
+        t.igual(r.headers["x-frame-options"], "DENY", `${rotulo}: X-Frame-Options`);
+        t.ok(
+          /frame-ancestors 'none'/.test(r.headers["content-security-policy"] ?? ""),
+          `${rotulo}: Content-Security-Policy sem frame-ancestors 'none' (${r.headers["content-security-policy"]})`
+        );
+        obs.push(`${rotulo}: XFO=${r.headers["x-frame-options"]} CSP=${r.headers["content-security-policy"]}`);
+      };
+
+      conferir(await requisitar({ caminho: "/login" }), "GET /login (publica)");
+      // O redirect de uma pagina protegida sem sessao acontece antes de qualquer coisa do app: os
+      // headers precisam estar la mesmo quando quem responde e so o proxy, nao uma rota.
+      conferir(await requisitar({ caminho: "/" }), "GET / sem cookie (redirect do proxy)");
+
+      await garantirCookie();
+      conferir(await requisitar({ caminho: "/api/grupos", cookie: E.cookie }), "GET /api/grupos (autenticada)");
+
+      t.nota(obs.join("; "));
+    },
+  ],
+  [
     "ERR-1",
     "apos a fase A nenhum processo fake-teams sobrou",
     async (t) => {

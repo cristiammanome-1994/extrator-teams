@@ -32,6 +32,100 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-27 — Auditoria de segurança completa (checklist de 18 itens) e correção de clickjacking
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [next.config.ts](app/next.config.ts), [verificar-api.mjs](app/scripts/verificar-api.mjs)
+
+**O quê.** Auditoria de segurança de ponta a ponta do projeto (env exposta,
+validação front/back, SQL injection, autenticação, IDOR, senha no banco,
+força bruta, bloqueio durante envio, CSRF, upload, revelação de informação,
+dependências, tokens, rate limit, dados sensíveis, SSRF, cookies), feita só
+lendo código — sem alterar nada até o achado do item CSRF/clickjacking.
+Nenhum item fechou como crítico ou alto confirmado.
+
+Resultado por status:
+- 🟢 **não encontrado**: env exposta; validação backend; SQL injection (tudo
+  parametrizado via `db.prepare`); autenticação; senha no banco; força bruta
+  (10 tentativas / 5 min + atraso fixo de 400 ms); bloqueio durante envio
+  (índice único no SQLite); upload (extensão, tamanho e `Content-Length`
+  checados); SSRF (nenhuma rota aceita URL de usuário).
+- ⚪ **não aplicável**: IDOR (app de senha única, sem conceito de
+  usuário/dono de recurso, por design); dados sensíveis (o próprio produto é
+  repositório de conversas, protegido pela sessão).
+- 🟠 **risco/parcial, sem virar tarefa imediata**: validação frontend (sem
+  `maxLength` no HTML, mas o backend refaz tudo); revelação de informação (a
+  última linha do stderr do script Python pode vazar num erro, só para quem
+  já tem sessão); dependências (`npm audit` achou `uuid < 11.1.1` moderado
+  via `exceljs`; correção exige breaking change, adiada); tokens (sem
+  revogação seletiva de sessão, só trocar a senha); rate limit (só o login
+  tem; as demais rotas não, aceito por serem seriadas ou de baixo custo);
+  cookies (`Secure` depende do protocolo, correto para uso local em
+  `127.0.0.1`).
+
+Corrigido nesta sessão (item CSRF/clickjacking, os 2 pontos acionáveis):
+(a) **decisão, não código** — o [proxy](app/src/proxy.ts) (`origemInvalida`)
+aceita `POST`/`PUT`/`PATCH`/`DELETE` sem cabeçalho `Origin`; isso é
+deliberado e já coberto por teste (`app/src/proxy.test.ts`, "POST sem Origin
+passa (curl, servidor a servidor)"; `scripts/verificar-api.mjs` também espera
+400 `GRUPO_INVALIDO` e não 403 nesse caso). Perguntado ao usuário se fechava
+essa janela (rejeitar `Origin` ausente) ou mantinha: escolheu **manter como
+está** — risco residual baixo (exige navegador que não manda `Origin` em
+requisição cross-site) contra quebrar o suporte a curl/script que dois testes
+garantem hoje. Não virou decision record formal (`get_why` não achou nenhuma
+para este arquivo), só este registro.
+(b) **implementado** — cabeçalho anti-clickjacking. [next.config.ts](app/next.config.ts)
+ganhou `async headers()` retornando, para `/:path*`, `X-Frame-Options: DENY`
+e `Content-Security-Policy: frame-ancestors 'none'`. Motivo: nenhum uso de
+`<iframe>` no app (grep vazio), logo nada deveria poder embuti-lo.
+
+**Por quê.** Pedido explícito de auditoria de segurança; o único item com
+correção acionável e de baixo custo foi o cabeçalho de embedding ausente.
+
+**Como.** TDD: acrescentado o check "SEG-1" em
+[verificar-api.mjs](app/scripts/verificar-api.mjs) antes da mudança,
+confirmado FAIL contra servidor real (porta 51795, dados sintéticos; 16
+PASS / 1 FAIL / 1 SKIP); depois do `next.config.ts`, rebuild e nova rodada:
+17 PASS / 0 FAIL / 1 SKIP (o skip é pré-existente, `DL-1[NUL]`, não
+relacionado). Descartado: testar `headers()` em vitest — só é aplicado pelo
+servidor completo do Next, não pelas rotas importadas direto nos testes
+unitários; isso ficou documentado em comentário no próprio `next.config.ts`.
+`maria-hill`: segue (sem rota nova; CSP não afeta script/estilo, só
+embedding; proxy/auth/download/spawn intactos; não reavaliou a decisão do
+`Origin`, só confirmou que o diff não mexeu nisso); sugeriu reforçar o SEG-1
+com `GET /` sem cookie (o redirect do proxy). `natasha`: 2 achados, ambos
+tratados — (1) a nota do SEG-1 só imprimia metade da evidência (só `/login`,
+não `/api/grupos`), quebrando o padrão das outras notas da fase A (ORIG-1,
+UP-1, DL-1, CONC-1, que juntam tudo numa nota só); (2) observação (não é
+falha): não há teste vitest para `headers()` do Next — já confessado no
+comentário do arquivo —, então o SEG-1 é a única rede de proteção para esse
+comportamento; se `verificar:api` sair do fluxo de release, uma regressão
+nos headers não seria pega pela régua padrão (`tsc` + lint + vitest). SEG-1
+hoje confere os 3 casos (login público, redirect do proxy em `/`, API
+autenticada) numa nota só.
+
+**Impacto.** Interno, infraestrutura de segurança, sem UI visível. Efeito
+colateral: o `npm run build` feito para esta verificação também deixa o
+build de `.next` do usuário atualizado com todas as correções desta sessão
+de trabalho anteriores (Excel/404/gráfico por hora, PDF em branco e PDF
+estreito) — falta só `npm start` de novo para servir o build atual, sem
+precisar rodar `npm run build` de novo.
+
+**Verificação.** `tsc` e lint limpos; vitest 35 arquivos / 336 testes
+passando (1 skip antigo por plataforma, sem mudança); `verificar-api.mjs`
+(servidor real, dados sintéticos, build de produção) com 17 PASS / 0 FAIL /
+1 SKIP.
+
+**Pendências.** (a) confirmar a pré-visualização de impressão do PDF
+corrigido (pendência de entrada anterior, "PDF da Análise saía com os
+gráficos em branco"); (b) decidir se a exportação de Conversas (CSV/Excel)
+ganha o mesmo recorte no nome e 404 para 0 mensagens que a Análise já tem
+(pendência de sessão anterior); (c) itens 🟠 da auditoria ficam registrados
+como aceitos/adiados, sem prazo: dependência `uuid` via `exceljs`, tokens
+sem revogação seletiva, rate limit ausente fora do login, validação
+frontend sem `maxLength` — reabrir só se o contexto do produto mudar (por
+exemplo, se o app deixar de rodar só em `127.0.0.1`).
+
 ## 2026-09-26 — PDF da Análise saía com os gráficos em branco (e, depois, estreitos e cortados)
 
 **Branch:** `main` · **Commits:** `sem commit ainda` (base publicada: `43ebf2e`)

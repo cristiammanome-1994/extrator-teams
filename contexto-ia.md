@@ -32,6 +32,39 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-28 — Confirmado pelo usuário: PDF da Análise sai correto na impressão real
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** nenhum (confirmação, sem mudança de código)
+
+**O quê.** O usuário confirmou, com print da pré-visualização real de
+impressão do navegador (grupo "Projetos | ClickUp & Controladoria", 7.567
+mensagens, 411 dias), que o PDF da Análise sai correto: os cartões, o gráfico
+"Mensagens por hora do dia" com as 24 horas completas (pico 11h-12h visível,
+rótulos legíveis), o gráfico "Mensagens por dia da semana", o gráfico
+"Mensagens por dia" e a lista de Autores aparecem certos na folha, ocupando a
+largura esperada, sem cortar.
+
+**Por quê.** Fecha por execução (validação do usuário, com evidência visual)
+a pendência "confirmar a pré-visualização de impressão do PDF", em aberto
+desde a entrada "PDF da Análise saía com os gráficos em branco (e, depois,
+estreitos e cortados)" (2026-09-26) desta mesma sessão, repetida nas
+entradas seguintes.
+
+**Como.** Sem mudança de código: só a confirmação visual que faltava desde a
+correção (CSS de impressão e `data-grade-graficos`, commit `68dfa16`).
+
+**Impacto.** Nenhum (confirmação, sem código).
+
+**Verificação.** Nenhuma nova — só a evidência visual trazida pelo usuário.
+
+**Pendências.** Continuam abertas (herdadas de entradas anteriores): (1)
+decidir se a exportação de Conversas (CSV/Excel) ganha o mesmo recorte no
+nome do arquivo e 404 para 0 mensagens que a Análise já tem. (2) itens 🟠 da
+auditoria de segurança de 18 itens (dependência `uuid` via `exceljs`, tokens
+sem revogação seletiva, rate limit ausente fora do login, validação
+frontend sem `maxLength`), aceitos e adiados sem prazo.
+
 ## 2026-09-27 — Documentação do GitHub atualizada e README.md criado na raiz
 
 **Branch:** `main` · **Commits:** `sem commit ainda`
@@ -172,9 +205,11 @@ passando (1 skip antigo por plataforma, sem mudança); `verificar-api.mjs`
 (servidor real, dados sintéticos, build de produção) com 17 PASS / 0 FAIL /
 1 SKIP.
 
-**Pendências.** (a) confirmar a pré-visualização de impressão do PDF
-corrigido (pendência de entrada anterior, "PDF da Análise saía com os
-gráficos em branco"); (b) decidir se a exportação de Conversas (CSV/Excel)
+**Pendências.** (a) RESOLVIDA em 2026-09-28 — ver a entrada "Confirmado pelo
+usuário: PDF da Análise sai correto na impressão real" (era: confirmar a
+pré-visualização de impressão do PDF corrigido, pendência de entrada
+anterior, "PDF da Análise saía com os gráficos em branco"); (b) decidir se a
+exportação de Conversas (CSV/Excel)
 ganha o mesmo recorte no nome e 404 para 0 mensagens que a Análise já tem
 (pendência de sessão anterior); (c) itens 🟠 da auditoria ficam registrados
 como aceitos/adiados, sem prazo: dependência `uuid` via `exceljs`, tokens
@@ -201,7 +236,7 @@ Aprendido: o servidor do usuário na porta 51794 era um `next start` com build d
 
 **Impacto.** Visível: PDF da Análise. Risco conhecido: o Ctrl+P direto não limita a largura (ver troca acima).
 
-**Pendências.** (a) Usuário conferir de novo a pré-visualização de impressão após `npm run build` e reiniciar o servidor (o build atual em `.next` ainda não tem a correção; ver também o segundo defeito abaixo). (b) O gráfico por hora no PDF usa os 700 px do `BotaoPdf` (2 colunas): legibilidade dos rótulos girados nesse tamanho não avaliada.
+**Pendências.** (a) RESOLVIDA em 2026-09-28 — ver a entrada "Confirmado pelo usuário: PDF da Análise sai correto na impressão real" (era: usuário conferir de novo a pré-visualização de impressão após `npm run build` e reiniciar o servidor; ver também o segundo defeito abaixo). (b) RESOLVIDA em 2026-09-28, mesma entrada — o print do usuário mostra os rótulos do gráfico por hora legíveis.
 
 ### Segundo defeito (descoberto depois que o usuário imprimiu de novo, após o rebuild)
 
@@ -221,7 +256,7 @@ Aprendido: o servidor do usuário na porta 51794 era um `next start` com build d
 
 **Impacto (segundo defeito).** Visível (PDF da Análise). Ctrl+P direto (sem o botão) continua sem o preparo, então o gráfico pode ficar estreito ou largo; troca consciente já registrada.
 
-**Pendências (segundo defeito).** Usuário: `npm run build`, reiniciar o servidor e conferir a pré-visualização de impressão; avaliar a legibilidade dos rótulos do gráfico por hora nos 668 px do PDF (na prova do Chromium as 24 horas saem retas e legíveis). Também merece entrada no changelog do app, se ainda não houver uma para este defeito.
+**Pendências (segundo defeito).** RESOLVIDA em 2026-09-28 — ver a entrada "Confirmado pelo usuário: PDF da Análise sai correto na impressão real" (era: usuário conferir a pré-visualização de impressão e a legibilidade dos rótulos do gráfico por hora; entrada no changelog do app já existe, commit `68dfa16`).
 
 ## 2026-09-26 — Excel da Análise com recorte no nome, 404 para recorte vazio, eixo de horas e teste de EBUSY
 
@@ -239,7 +274,7 @@ Descartado: aviso na tela para o 404 (o botão é `<a download>` sem fetch; a te
 
 **Impacto.** Visível: nome do Excel da Análise e gráfico por hora. A rota ganhou o código de erro `SEM_MENSAGENS` (só quem chama direto vê o 404).
 
-**Pendências.** (a) AINDA NÃO RESOLVIDA: o PDF impresso saía com gráficos em branco e depois estreitos/cortados; ver a entrada "PDF da Análise saía com os gráficos em branco". Só fecha depois que o usuário conferir a pré-visualização de impressão com o build novo. (b) RESOLVIDA (informado pelo usuário, não por execução da IA): a extração do grupo "Projetos | Tecnologia" passa de 11/02/2025; valida o scraper e fecha o gatilho do ciclo 4. (c) Decidir se Conversas (CSV/Excel) também ganha recorte no nome e 404 para 0 mensagens. (d) Monitorar se o EBUSY volta; se voltar, capturar o caminho no erro para achar a causa. (e) Medir a memória do XLSX com grupo grande (herdada). (f) Limiar 640 do gráfico não medido exatamente na largura de transição.
+**Pendências.** (a) RESOLVIDA em 2026-09-28 — ver a entrada "Confirmado pelo usuário: PDF da Análise sai correto na impressão real" (era: o PDF impresso saía com gráficos em branco e depois estreitos/cortados; ver a entrada "PDF da Análise saía com os gráficos em branco"; faltava o usuário conferir a pré-visualização de impressão com o build novo). (b) RESOLVIDA (informado pelo usuário, não por execução da IA): a extração do grupo "Projetos | Tecnologia" passa de 11/02/2025; valida o scraper e fecha o gatilho do ciclo 4. (c) Decidir se Conversas (CSV/Excel) também ganha recorte no nome e 404 para 0 mensagens. (d) Monitorar se o EBUSY volta; se voltar, capturar o caminho no erro para achar a causa. (e) Medir a memória do XLSX com grupo grande (herdada). (f) Limiar 640 do gráfico não medido exatamente na largura de transição.
 
 ## 2026-09-26 — Ciclo 4 (fallback via Graph API) adiado; extração passa de 11/02/2025
 

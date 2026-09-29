@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { criarAba, gerarCsv, gerarXlsx, type ColunaExportacao } from "./exportar";
-import { nomeArquivoExportacao } from "./nomeArquivo";
+import { nomeArquivoExportacao, recorteParaArquivo } from "./nomeArquivo";
+import type { FiltrosMensagens } from "@/types/dominio";
 
 interface Linha {
   autor: string;
@@ -73,6 +74,28 @@ describe("nomeArquivoExportacao", () => {
   it("recorte vazio ou só símbolos deixa o nome como era", () => {
     expect(nomeArquivoExportacao("Grupo", "xlsx", dia, "")).toBe("Grupo-2026-09-26.xlsx");
     expect(nomeArquivoExportacao("Grupo", "xlsx", dia, "|||")).toBe("Grupo-2026-09-26.xlsx");
+  });
+});
+
+describe("recorteParaArquivo", () => {
+  it("corta autor e busca compridos, para não engolirem o período no nome do arquivo", () => {
+    const entrada: FiltrosMensagens = { grupoId: 1, autor: "x".repeat(50), texto: "y".repeat(50), de: "2026-09-08" };
+    const filtros = recorteParaArquivo(entrada);
+    expect(filtros.autor).toHaveLength(30);
+    expect(filtros.texto).toHaveLength(30);
+    expect(filtros.de).toBe("2026-09-08"); // data não é texto livre: nunca precisa cortar
+  });
+
+  it("deixa autor e busca curtos como estavam", () => {
+    const entrada: FiltrosMensagens = { grupoId: 1, autor: "Ana Teste", texto: "oi" };
+    const filtros = recorteParaArquivo(entrada);
+    expect(filtros.autor).toBe("Ana Teste");
+    expect(filtros.texto).toBe("oi");
+  });
+
+  it("sem autor nem busca, não inventa nada", () => {
+    const entrada: FiltrosMensagens = { grupoId: 1, de: "2026-09-08" };
+    expect(recorteParaArquivo(entrada)).toEqual({ grupoId: 1, de: "2026-09-08" });
   });
 });
 

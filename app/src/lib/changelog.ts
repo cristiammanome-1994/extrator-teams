@@ -63,6 +63,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     descricao:
       "Ao salvar a Análise em PDF, os gráficos (por dia, por hora e por dia da semana) saíam vazios; só os cartões e a lista de autores apareciam. Agora os gráficos saem completos.",
   },
+  {
+    data: "2026-09-28",
+    titulo: "Conversas: CSV e Excel com o recorte no nome",
+    categoria: "melhoria",
+    descricao:
+      "O CSV e o Excel de Conversas agora trazem o autor, o período e a busca no nome do arquivo, como o Excel da Análise. A tela já desabilitava os botões sem mensagens; agora quem acessa o endereço direto recebe um erro 404 em vez de um arquivo só com cabeçalhos.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

@@ -3,8 +3,8 @@ import { erroApi, lerFormato, respostaArquivo } from "@/lib/api";
 import { obterBanco } from "@/lib/db/conexao";
 import { listarGrupos, todasMensagens } from "@/lib/db/repositorio";
 import { criarAba, gerarCsv, gerarXlsx, type ColunaExportacao } from "@/lib/exportar";
-import { nomeArquivoExportacao } from "@/lib/nomeArquivo";
-import { formatarDataHora } from "@/lib/formatacao";
+import { nomeArquivoExportacao, recorteParaArquivo } from "@/lib/nomeArquivo";
+import { formatarDataHora, partesDoRecorte } from "@/lib/formatacao";
 import { lerFiltros } from "@/lib/parametros";
 import type { Mensagem } from "@/types/dominio";
 
@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
   if (!grupo) return erroApi("NAO_ENCONTRADO", "Grupo não encontrado.", 404);
 
   const mensagens = todasMensagens(db, lido.filtros);
-  const nome = nomeArquivoExportacao(grupo.nome, formato);
+  // A tela desabilita os botões neste caso; quem chama a rota direto recebe o motivo em vez de um arquivo só com cabeçalhos.
+  if (mensagens.length === 0) return erroApi("SEM_MENSAGENS", "Nenhuma mensagem no recorte selecionado.", 404);
+
+  const recorte = partesDoRecorte(recorteParaArquivo(lido.filtros)).join(" ");
+  const nome = nomeArquivoExportacao(grupo.nome, formato, new Date(), recorte);
   const corpo =
     formato === "csv"
       ? gerarCsv(mensagens, COLUNAS)

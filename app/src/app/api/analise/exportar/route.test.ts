@@ -76,6 +76,14 @@ describe("GET /api/analise/exportar", () => {
     expect(resposta.headers.get("content-disposition")).toMatch(/-de-07-09-2026-ate-09-09-2026-\d{4}-\d{2}-\d{2}\.xlsx"$/);
   });
 
+  it("a Análise não tem busca na tela, mas q= na URL filtra os dados e aparece no nome, como Conversas", async () => {
+    // lerFiltros é compartilhado com Conversas: um q= aqui já filtrava os KPIs antes deste teste
+    // existir (montarWhere), só não aparecia no nome do arquivo. Documentado, não é regressão.
+    const resposta = await pedir("?grupoId=1&q=http");
+    expect(resposta.status).toBe(200);
+    expect(resposta.headers.get("content-disposition")).toMatch(/-analise-busca-http-\d{4}-\d{2}-\d{2}\.xlsx"$/);
+  });
+
   it("traz as abas Por autor e Por dia, já filtradas pelo período", async () => {
     const ExcelJS = (await import("exceljs")).default;
     const resposta = await pedir("?grupoId=1&de=2026-09-08&ate=2026-09-09");

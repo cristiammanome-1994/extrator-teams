@@ -17,13 +17,29 @@ export function formatarDia(iso: string): string {
 }
 
 /**
- * Recorte da Análise em partes de texto (`autor: Ana`, `de 08/09/2026`, `até 09/09/2026`), o que a
- * referência do PDF e o nome do Excel mostram. Só entra o que foi filtrado.
+ * Recorte de um filtro em partes de texto (`autor: Ana`, `de 08/09/2026`, `até 09/09/2026`,
+ * `busca: "reunião"`), o que a referência do PDF e o nome do Excel/CSV mostram. Só entra o que foi
+ * filtrado. `texto` é a busca de Conversas; a Análise não tem caixa de busca na tela, mas `lerFiltros`
+ * é compartilhado, então um `q=` na URL entra do mesmo jeito — o nome do arquivo passa a dizer a
+ * verdade sobre o filtro, já que `texto` também filtra os dados exportados (`montarWhere`).
  */
-export function partesDoRecorte({ autor, de, ate }: { autor?: string; de?: string; ate?: string }): string[] {
-  return [autor && `autor: ${autor}`, de && `de ${formatarDia(de)}`, ate && `até ${formatarDia(ate)}`].filter(
-    (p): p is string => Boolean(p)
-  );
+export function partesDoRecorte({
+  autor,
+  de,
+  ate,
+  texto,
+}: {
+  autor?: string;
+  de?: string;
+  ate?: string;
+  texto?: string;
+}): string[] {
+  return [
+    autor && `autor: ${autor}`,
+    de && `de ${formatarDia(de)}`,
+    ate && `até ${formatarDia(ate)}`,
+    texto && `busca: "${texto}"`,
+  ].filter((p): p is string => Boolean(p));
 }
 
 /** Instante ISO (UTC) para data e hora locais. */

@@ -24,6 +24,23 @@ export function sufixoData(hoje: Date): string {
 }
 
 /**
+ * Teto de autor/busca ao entrar no NOME do arquivo (não na tela: `partesDoRecorte` sem este corte
+ * segue mostrando o valor inteiro, ex. na referência do PDF). O slug do recorte inteiro tem 80
+ * caracteres; texto livre comprido sozinho consumiria esse teto e esconderia o período, que é a
+ * parte mais útil para diferenciar dois arquivos do mesmo grupo.
+ */
+export const LIMITE_TRECHO_NO_NOME = 30;
+
+/** Filtros com `autor`/`texto` cortados para o nome do arquivo; `grupoId`/`de`/`ate` passam intactos. */
+export function recorteParaArquivo<T extends { autor?: string; texto?: string }>(filtros: T): T {
+  return {
+    ...filtros,
+    ...(filtros.autor !== undefined && { autor: filtros.autor.slice(0, LIMITE_TRECHO_NO_NOME) }),
+    ...(filtros.texto !== undefined && { texto: filtros.texto.slice(0, LIMITE_TRECHO_NO_NOME) }),
+  };
+}
+
+/**
  * Nome do arquivo baixado: `<grupo>[-<recorte>]-<data>.<extensão>`, com `exportacao` se o grupo não
  * render slug. O recorte tem o próprio slug, com o mesmo teto de 80 caracteres para o recorte inteiro:
  * isso protege o filtro de um nome de grupo comprido, mas quem monta o recorte deve encurtar partes

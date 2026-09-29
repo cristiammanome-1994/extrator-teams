@@ -39,6 +39,11 @@ describe("partesDoRecorte", () => {
     expect(partesDoRecorte({})).toEqual([]);
     expect(partesDoRecorte({ de: "2026-09-08" })).toEqual(["de 08/09/2026"]);
   });
+
+  it("inclui a busca no texto (Conversas), por último", () => {
+    expect(partesDoRecorte({ autor: "Ana Teste", texto: "reunião" })).toEqual(["autor: Ana Teste", 'busca: "reunião"']);
+    expect(partesDoRecorte({ texto: "" })).toEqual([]);
+  });
 });
 
 describe("rotuloHora e rotuloIntervaloHora", () => {

@@ -32,6 +32,73 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-28 — Conversas (CSV/Excel) ganha o mesmo recorte no nome e 404 sem mensagens que a Análise
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [app/src/lib/formatacao.ts](app/src/lib/formatacao.ts),
+[app/src/lib/nomeArquivo.ts](app/src/lib/nomeArquivo.ts),
+[app/src/app/api/mensagens/exportar/route.ts](app/src/app/api/mensagens/exportar/route.ts),
+[app/src/app/api/analise/exportar/route.ts](app/src/app/api/analise/exportar/route.ts),
+[app/src/lib/changelog.ts](app/src/lib/changelog.ts)
+
+**O quê.** Estendida à exportação de Conversas (CSV/Excel) a mesma pendência
+decidida pelo usuário ("faz o recorte no Conversas também"): recorte (autor,
+período e agora também busca no texto) no nome do arquivo, e 404
+`SEM_MENSAGENS` para recorte vazio — mesmo tratamento que a Análise já tinha
+desde 2026-09-26. `partesDoRecorte` ganhou o parâmetro `texto` (formatado
+como `busca: "..."`, por último, só quando presente). Nova função
+`recorteParaArquivo` em `nomeArquivo.ts` corta autor e texto em 30 caracteres
+cada (`LIMITE_TRECHO_NO_NOME`) antes de formatar, para nenhum dos dois
+sozinho engolir o teto de 80 do slug do recorte. A rota da Análise foi
+refatorada para usar esse `recorteParaArquivo` compartilhado em vez do
+`LIMITE_AUTOR_NO_NOME` que só existia ali.
+
+**Por quê.** Fecha a pendência registrada em 2026-09-26 e repetida na
+entrada anterior (2026-09-28, confirmação do PDF): "decidir se a exportação
+de Conversas ganha o mesmo recorte no nome do arquivo e 404 para 0
+mensagens que a Análise já tem".
+
+**Como.** Compartilhar `recorteParaArquivo`/`partesDoRecorte` entre as duas
+rotas em vez de duplicar a lógica de corte. Achado da `natasha`, tratado: o
+refactor da rota da Análise fez `texto` (parâmetro `q`, que `lerFiltros` já
+aceitava e `montarWhere` já usava para filtrar os KPIs, comportamento
+anterior a este diff) passar a aparecer no nome do Excel da Análise também
+— a Análise não tem UI de busca, mas a URL aceita `q=` do mesmo jeito.
+Decisão: manter esse comportamento (o nome do arquivo passa a dizer a
+verdade sobre o filtro já aplicado aos dados, em vez de escondê-lo),
+documentado no comentário de `partesDoRecorte` (que deixou de dizer
+"Recorte da Análise" e virou "Recorte de um filtro", citando `busca`) e
+coberto por teste novo. Outro achado da `natasha`, tratado: faltava teste de
+busca comprida (>30 caracteres) combinada com período pela rota de
+Conversas (só havia teste unitário isolado de `recorteParaArquivo`).
+Achados descartados/sem ação da `natasha`: `conversas-view.tsx` não
+precisava de ajuste (`total===0` já reflete todos os filtros porque
+`/api/mensagens` e `/api/mensagens/exportar` usam o mesmo `montarWhere`); a
+frase do changelog mantida como está, por ficar tecnicamente correta com a
+decisão tomada acima.
+
+**Impacto.** Visível para quem usa: nome dos arquivos de Conversas mudou
+(passa a incluir autor/período/busca); a rota de exportação de Conversas
+agora recusa com 404 `SEM_MENSAGENS` quando o recorte não tem mensagem, em
+vez de gerar arquivo só com cabeçalhos. Entrada nova em
+[changelog.ts](app/src/lib/changelog.ts) (melhoria, 2026-09-28).
+
+**Verificação.** `tsc` e lint limpos; 35 arquivos / 346 testes passando (1
+skip antigo por plataforma). Revisão `maria-hill`: segue — achado aceito
+como decisão de produto (não vulnerabilidade): o termo de busca passa a
+constar no nome do arquivo baixado, visível na pasta Downloads e no
+histórico do navegador (já acontecia com o autor antes; o termo é limitado
+a 30 caracteres e passa por slug). Revisão `natasha`: 5 achados, tratados
+conforme descrito em "Como".
+
+**Pendências.** Nenhuma nova relacionada a este item — fecha a pendência
+"decidir se Conversas ganha o mesmo recorte/404 que a Análise" (ver linha
+abaixo, atualizada). Seguem só os itens 🟠 da auditoria de segurança de 18
+itens (`uuid` via `exceljs`, tokens sem revogação seletiva, rate limit fora
+do login, validação frontend sem `maxLength`), aceitos e adiados sem prazo,
+e agora também o achado da `maria-hill` sobre o termo de busca no nome do
+arquivo (risco aceito, sem ação).
+
 ## 2026-09-28 — Confirmado pelo usuário: PDF da Análise sai correto na impressão real
 
 **Branch:** `main` · **Commits:** `sem commit ainda`
@@ -58,12 +125,12 @@ correção (CSS de impressão e `data-grade-graficos`, commit `68dfa16`).
 
 **Verificação.** Nenhuma nova — só a evidência visual trazida pelo usuário.
 
-**Pendências.** Continuam abertas (herdadas de entradas anteriores): (1)
-decidir se a exportação de Conversas (CSV/Excel) ganha o mesmo recorte no
-nome do arquivo e 404 para 0 mensagens que a Análise já tem. (2) itens 🟠 da
-auditoria de segurança de 18 itens (dependência `uuid` via `exceljs`, tokens
-sem revogação seletiva, rate limit ausente fora do login, validação
-frontend sem `maxLength`), aceitos e adiados sem prazo.
+**Pendências.** (1) resolvida em 2026-09-28, ver entrada "Conversas
+(CSV/Excel) ganha o mesmo recorte no nome e 404 sem mensagens que a
+Análise" logo acima. (2) itens 🟠 da auditoria de segurança de 18 itens
+(dependência `uuid` via `exceljs`, tokens sem revogação seletiva, rate
+limit ausente fora do login, validação frontend sem `maxLength`), aceitos e
+adiados sem prazo.
 
 ## 2026-09-27 — Documentação do GitHub atualizada e README.md criado na raiz
 

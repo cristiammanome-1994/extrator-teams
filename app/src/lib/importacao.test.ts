@@ -66,6 +66,17 @@ describe("importarTxt", () => {
   it("arquivo sem mensagens é recusado", () => {
     expect(() => importarTxt(db, "Histórico do chat: X\n", undefined)).toThrow(ErroImportacao);
   });
+
+  it("recusa nome de grupo comprido (informado ou do cabeçalho) em vez de fundir com outro grupo por corte silencioso", () => {
+    const comprido = "x".repeat(300);
+    expect(() => importarTxt(db, TXT, comprido)).toThrow(ErroImportacao);
+    const cabecalhoComprido = TXT.replace("Histórico do chat: Grupo de Teste", `Histórico do chat: ${comprido}`);
+    expect(() => importarTxt(db, cabecalhoComprido)).toThrow(ErroImportacao);
+  });
+
+  it("recusa nome de grupo com caractere de controle, como a exportação já recusa", () => {
+    expect(() => importarTxt(db, TXT, `Grupo${String.fromCharCode(9)}Com Tab`)).toThrow(ErroImportacao);
+  });
 });
 
 describe("importarJson", () => {

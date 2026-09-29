@@ -32,6 +32,88 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-29 — Auditoria de segurança: os 2 itens 🟠 "baratos" implementados; 2 ficam adiados de propósito
+
+**Branch:** `main` · **Commits:** `sem commit ainda`
+**Arquivos:** [app/package.json](app/package.json),
+[app/README.md](app/README.md),
+[app/src/components/exportacoes/formulario-exportacao.tsx](app/src/components/exportacoes/formulario-exportacao.tsx),
+[app/src/components/exportacoes/importar-txt.tsx](app/src/components/exportacoes/importar-txt.tsx),
+[app/src/components/conversas/conversas-view.tsx](app/src/components/conversas/conversas-view.tsx),
+[app/src/lib/parametros.ts](app/src/lib/parametros.ts),
+[app/src/lib/importacao.ts](app/src/lib/importacao.ts),
+[app/src/lib/importacao.test.ts](app/src/lib/importacao.test.ts),
+[app/src/lib/changelog.ts](app/src/lib/changelog.ts)
+
+**O quê.** Dos 4 itens 🟠 adiados na auditoria de segurança de 18 itens
+(2026-09-27), o usuário pediu o planejamento dos restantes e escolheu "só os
+baratos": (1) a dependência transitiva `uuid` vulnerável, vinda de `exceljs`,
+fixada por `overrides` no [package.json](app/package.json)
+(`"uuid": "^11.1.1"`) em vez de trocar de biblioteca de planilha; (2)
+`maxLength` no frontend nos três campos de texto livre que já tinham teto no
+backend: nome do grupo (exportar e importar) e busca no texto de Conversas
+(nova constante `TAMANHO_MAXIMO_FILTRO_TEXTO=200` em
+[parametros.ts](app/src/lib/parametros.ts), substituindo dois `200` crus
+escritos direto em `lerFiltros`).
+
+**Por quê.** `npm audit` reportava 2 avisos moderados por causa de `uuid`
+(GHSA-w5hq-g745-h8pq, sobre o argumento opcional `buf` de `uuidv4()`); a
+correção registrada na auditoria original (trocar `exceljs`) era um breaking
+change desnecessário — grep em `node_modules/exceljs/lib` confirmou que
+`exceljs@4.4.0` só chama `uuidv4()` sem argumento nenhum, então o
+override basta e não muda a versão do `exceljs`. O `maxLength` fecha a
+diferença entre o que a tela deixa digitar e o que o backend de fato aceita.
+
+**Como.** Ao revisar o `maxLength` do campo de import, apareceu um achado
+real (não cosmético) da `natasha`: o backend do import
+([importacao.ts](app/src/lib/importacao.ts), `importarTxt`) nunca tinha o
+teto de verdade — só fazia `trim()`, sem chamar `validarGrupo` (que só a
+exportação usava, via `orquestrador.ts`). O `maxLength=200` da tela prometia
+um limite que o import não impunha. Duas opções de correção: cortar em
+silêncio (como o frontend já fazia) ou recusar com erro. A `maria-hill`
+apontou que cortar em silêncio pode fundir dois grupos diferentes que só
+divergissem depois do caractere 200, porque `obterOuCriarGrupo` casa por
+igualdade exata de nome — e que o import também nunca checava caractere de
+controle (TAB/NUL) no nome, diferente da exportação. Perguntado
+explicitamente, o usuário escolheu **recusar**, não cortar. `importarTxt`
+passou a chamar `validarGrupo()` (mesma função da exportação) sobre o nome
+resolvido (informado ou lido do cabeçalho) e lançar `ErroImportacao` com o
+motivo dela; isso fecha de graça a checagem de caractere de controle também.
+O placeholder do campo de nome do grupo no import foi ajustado (achado da
+`natasha`) porque ficou defasado: preencher esse campo agora também é o
+jeito de contornar um cabeçalho com nome inválido/comprido, não só um
+cabeçalho ausente. Nota sobre o override adicionada em
+[README.md](app/README.md) (seção Desenvolvimento) porque `package.json` é
+JSON puro e não aceita comentário — sem isso uma limpeza futura de
+"overrides não usados" apagaria a linha sem saber que fecha um item da
+auditoria.
+
+**Impacto.** Visível para quem usa: importar um `.txt` com nome de grupo
+comprido demais ou com caractere de controle agora dá erro claro em vez de
+aceitar cortado; os três campos de texto mostram o limite ao digitar.
+`npm audit` foi de 2 avisos moderados para 0. Entrada nova em
+[changelog.ts](app/src/lib/changelog.ts) (categoria correção, 2026-09-29):
+"Nome do grupo comprido demais é recusado, não cortado". Sem alteração em
+`app/src/lib/auth/`, `app/src/proxy.ts` nem no `spawn` do orquestrador.
+Verificação: `tsc` e lint limpos; 35 arquivos / 348 testes passando (1 skip
+antigo por plataforma); `npm audit` = 0 vulnerabilidades.
+
+**Pendências.** Os outros 2 itens 🟠 da auditoria de 2026-09-27 continuam
+adiados de propósito (decisão do usuário, não esquecimento): (a) revogação
+seletiva de sessão exigiria uma tabela `sessoes` no SQLite (id, criada_em,
+expira_em, revogada_em) e o cookie carregando esse id, com `sessaoEhValida`
+passando a consultar o banco a cada requisição em vez de só validar a
+assinatura HMAC — é a primeira peça de um sistema multiusuário que o app não
+tem por design; reabrir só se o app ganhar múltiplos usuários; (b) rate
+limit genérico fora do login exigiria extrair o mecanismo de
+`app/src/lib/auth/limiteTentativas.ts` (hoje só por origem, só para login)
+para algo reusável por rota; hoje as demais rotas já têm proteção própria
+parcial (índice único serializando exportação, teto de tamanho de upload,
+tudo atrás de sessão); reabrir só se o app deixar de rodar exclusivamente em
+127.0.0.1.
+
+---
+
 ## 2026-09-28 — Conversas (CSV/Excel) ganha o mesmo recorte no nome e 404 sem mensagens que a Análise
 
 **Branch:** `main` · **Commits:** `sem commit ainda`

@@ -1,6 +1,13 @@
 import type { FiltrosMensagens } from "@/types/dominio";
 
 /**
+ * Teto de `autor`/`q` (busca) na query string. Na tela, `autor` é sempre um `<select>` com nomes já
+ * existentes (nunca digitado), então só o campo de busca usa isto como `maxLength`; para `autor` este
+ * teto é defesa de servidor contra chamada direta à API, sem UI equivalente.
+ */
+export const TAMANHO_MAXIMO_FILTRO_TEXTO = 200;
+
+/**
  * Só decimal simples: dígitos ASCII, sem sinal, espaço, expoente, prefixo (`0x`) nem ponto. `Number()`
  * aceitaria `"1e3"`, `"0x10"` e `" 12 "`. Acima de 2^53 o valor perderia precisão, então também é recusado.
  */
@@ -24,8 +31,8 @@ export function limitar(n: number | null, minimo: number, maximo: number, padrao
 export function lerFiltros(params: URLSearchParams): { filtros: FiltrosMensagens } | { erro: string } {
   const grupoId = inteiro(params.get("grupoId"));
   if (grupoId === null) return { erro: "Informe o grupo (grupoId)." };
-  const autor = params.get("autor")?.trim().slice(0, 200);
-  const texto = params.get("q")?.trim().slice(0, 200);
+  const autor = params.get("autor")?.trim().slice(0, TAMANHO_MAXIMO_FILTRO_TEXTO);
+  const texto = params.get("q")?.trim().slice(0, TAMANHO_MAXIMO_FILTRO_TEXTO);
   return {
     filtros: {
       grupoId,

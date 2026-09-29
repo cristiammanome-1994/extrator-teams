@@ -5,6 +5,7 @@ import { AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TAMANHO_MAXIMO_GRUPO } from "@/lib/validarGrupo";
 
 export function FormularioExportacao({
   desabilitado,
@@ -54,6 +55,7 @@ export function FormularioExportacao({
             placeholder="Nome do grupo, exatamente como aparece no Teams"
             aria-label="Nome do grupo"
             disabled={desabilitado}
+            maxLength={TAMANHO_MAXIMO_GRUPO}
           />
           <Button type="submit" disabled={desabilitado || enviando || grupo.trim().length === 0}>
             <Download className="mr-1.5 size-4" />

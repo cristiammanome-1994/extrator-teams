@@ -58,6 +58,12 @@ datas). O orquestrador (`src/lib/exportacao/`) é testado com um script Node
 falso que imita a saída do Python, sem abrir o Teams. O teste real com o Teams
 é manual: exige o seu login.
 
+`package.json` tem um `overrides` para `uuid`: fecha um aviso moderado do
+`npm audit` (`uuid<11.1.1`, dependência transitiva do `exceljs`). O `exceljs`
+só chama `uuidv4()` sem argumentos — a vulnerabilidade real é no argumento
+`buf`, que ele nunca passa —, mas o override não custa nada e silencia o
+aviso. Remova-o se um dia o `exceljs` atualizar sua própria dependência.
+
 `npm run verificar:api` sobe um `next start` de produção de verdade (porta
 51795, livre da 51794 do app), com senha, banco e pasta de exportações
 temporários, e confere por HTTP real: autenticação de todas as rotas, origem,

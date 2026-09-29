@@ -3,6 +3,7 @@ import type { MensagemBruta } from "@/types/dominio";
 import { interpretarDataHoraPt } from "./dataPt";
 import { inserirMensagens, marcarUltimaExportacao, obterOuCriarGrupo } from "./db/repositorio";
 import { parseTxt } from "./parseTxt";
+import { validarGrupo } from "./validarGrupo";
 
 /** Erro esperado de uma importação (entrada inválida) — a API o devolve como 400. */
 export class ErroImportacao extends Error {}
@@ -37,15 +38,23 @@ export interface ResultadoImportacaoTxt extends ResultadoImportacao {
   divergencia: boolean;
 }
 
-/** Importa um `.txt` produzido pelo script. O nome informado prevalece sobre o do cabeçalho. */
+/**
+ * Importa um `.txt` produzido pelo script. O nome informado prevalece sobre o do cabeçalho, e passa
+ * pela mesma `validarGrupo` da exportação (tamanho, caractere de controle): sem isso, um nome comprido
+ * demais fundiria em silêncio com outro grupo que só diferisse depois do teto — a exportação recusa
+ * esse caso, então o import recusa também, em vez de cortar.
+ */
 export function importarTxt(db: DatabaseSync, conteudo: string, grupoInformado?: string): ResultadoImportacaoTxt {
   const lido = parseTxt(conteudo);
-  const grupo = grupoInformado?.trim() || lido.grupo;
-  if (!grupo) {
+  const bruto = grupoInformado?.trim() || lido.grupo;
+  if (!bruto) {
     throw new ErroImportacao(
       'O arquivo não tem o cabeçalho "Histórico do chat: ...". Informe o nome do grupo.'
     );
   }
+  const validado = validarGrupo(bruto);
+  if (!validado.ok) throw new ErroImportacao(validado.motivo);
+  const grupo = validado.nome;
   if (lido.mensagens.length === 0) {
     throw new ErroImportacao("Nenhuma mensagem encontrada no arquivo.");
   }

@@ -16,6 +16,7 @@ import { useGrupos } from "@/hooks/useGrupos";
 import { useRecursoRemoto } from "@/hooks/useRecursoRemoto";
 import { selecionarDadosDoGrupo } from "@/lib/dadosDoGrupo";
 import { formatarNumero } from "@/lib/formatacao";
+import { TAMANHO_MAXIMO_FILTRO_TEXTO } from "@/lib/parametros";
 import { cn } from "@/lib/utils";
 import type { Mensagem } from "@/types/dominio";
 import { LinhaMensagem } from "./linha-mensagem";
@@ -118,6 +119,7 @@ export function ConversasView() {
           placeholder="Buscar no texto"
           value={rascunho.q}
           onChange={(e) => setRascunho({ ...rascunho, q: e.target.value })}
+          maxLength={TAMANHO_MAXIMO_FILTRO_TEXTO}
         />
         <div className="flex gap-1">
           <Button type="submit">

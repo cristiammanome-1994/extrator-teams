@@ -70,6 +70,13 @@ export const CHANGELOG: EntradaChangelog[] = [
     descricao:
       "O CSV e o Excel de Conversas agora trazem o autor, o período e a busca no nome do arquivo, como o Excel da Análise. A tela já desabilitava os botões sem mensagens; agora quem acessa o endereço direto recebe um erro 404 em vez de um arquivo só com cabeçalhos.",
   },
+  {
+    data: "2026-09-29",
+    titulo: "Nome do grupo comprido demais é recusado, não cortado",
+    categoria: "correcao",
+    descricao:
+      "Importar um .txt com o nome do grupo (no cabeçalho ou digitado) maior que 200 caracteres, ou com caractere inválido, agora mostra um erro claro — antes o nome era cortado em silêncio, podendo juntar dois grupos diferentes por engano. Os campos de nome do grupo e de busca também mostram o limite de caracteres ao digitar.",
+  },
 ];
 
 /** `CHANGELOG` (ou outra lista, nos testes) da mais recente para a mais antiga, sem alterar o original. */

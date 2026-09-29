@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { invalidarCache } from "@/hooks/useRecursoRemoto";
+import { TAMANHO_MAXIMO_GRUPO } from "@/lib/validarGrupo";
 
 interface ResultadoImportacao {
   grupo: string;
@@ -63,8 +64,9 @@ export function ImportarTxt() {
           <Input
             value={grupo}
             onChange={(e) => setGrupo(e.target.value)}
-            placeholder="Nome do grupo (só se o arquivo não tiver cabeçalho)"
+            placeholder="Nome do grupo (se faltar no cabeçalho, ou se o do cabeçalho for recusado)"
             aria-label="Nome do grupo para importação"
+            maxLength={TAMANHO_MAXIMO_GRUPO}
           />
           <Button type="submit" variant="outline" disabled={!arquivo || enviando}>
             <Upload className="mr-1.5 size-4" />

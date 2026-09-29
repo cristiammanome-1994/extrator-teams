@@ -32,6 +32,52 @@ chamado ao fim de cada alteração. Editar à mão também é válido.
 
 ---
 
+## 2026-09-29 — Extração real de "Projetos | Tecnologia" confirma que o scraper não trunca mais (fecha a pendência de validação do Ciclo 4)
+
+**Branch:** `main` · **Commits:** `sem commit ainda` (confirmação, sem mudança de código)
+**Arquivos:** nenhum alterado; evidência em `app/exports/exportacao_24.json` e
+`app/exports/exportacao_24.txt` (dados sensíveis, não versionados)
+
+**O quê.** O usuário rodou, pelo próprio painel web em produção (porta 51794,
+`app/.env.local` e `app/data/` reais), uma nova extração do grupo "Projetos |
+Tecnologia" pelo formulário de Nova exportação. É a mesma validação que
+faltava desde a entrada "Ciclo 4 (fallback via Graph API) adiado" de
+2026-09-26, que registrava que nenhuma sessão de IA tinha conseguido rodar a
+extração — a folga do scraper (`56af216`) não tinha sido confirmada por
+execução real, nem se tinha checado a data da mensagem mais antiga no arquivo
+exportado.
+
+**Por quê.** Fechar, com execução de verdade e não só relato do usuário, se o
+aumento de tolerância do scraper (`max_iterations` 400→800, `stagnant_limit`
+4→8, `scroll_wait_ms` 700→1500, commit `56af216`) resolveu o truncamento do
+histórico que motivava reabrir o Ciclo 4 (fallback via Graph API).
+
+**Como.** O usuário logou no painel pelo próprio navegador (Brave, sessão
+dele; a IA não viu nem digitou a senha), preencheu "Projetos | Tecnologia" e
+clicou Exportar. Acompanhamento feito de fora da sessão autenticada: processo
+do Windows (`python.exe` rodando `teams_chat_export.py` com
+`--json-out`/`--output`) e a pasta `exports/`, sem ler conteúdo de mensagem.
+Exportação nº 24 no histórico, iniciada 08:55:34, arquivos gravados 09:13
+(~17,5 min). Metadados extraídos de `exportacao_24.json` com um script
+pontual (contagem de mensagens e datas brutas primeira/última, sem autor nem
+texto): grupo "Projetos | Tecnologia", 5.316 mensagens, primeira mensagem em
+14 de julho de 2022, última "Hoje às 08:52" (29/09/2026). Cabeçalho do `.txt`
+confere: "Total de mensagens: 5316".
+
+**Impacto.** Nenhuma mudança de código; é confirmação. A mensagem mais antiga
+(14/07/2022) está muito além do antigo limite de 11/02/2025 que travava o
+scraper, então a tolerância maior resolveu o truncamento. Fecha de vez o
+gatilho de reabertura do Ciclo 4 por truncamento do scraper. O outro gatilho
+("se quiserem extrair sem abrir o navegador") continua de pé, mas é decisão
+de produto, não bug.
+
+**Pendências.** Nenhuma nova; nenhuma pendência residual sobre o scraper
+truncar histórico. Verificação: metadados conferidos (contagem batendo entre
+cabeçalho do `.txt` e o JSON; datas plausíveis); conteúdo das mensagens não
+foi aberto (dado sensível).
+
+---
+
 ## 2026-09-29 — Auditoria de segurança: os 2 itens 🟠 "baratos" implementados; 2 ficam adiados de propósito
 
 **Branch:** `main` · **Commits:** `sem commit ainda`
